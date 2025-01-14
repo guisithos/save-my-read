@@ -3,9 +3,12 @@ package googlebooks
 import (
 	"encoding/json"
 	"fmt"
+	"log"
 	"net/http"
 	"net/url"
 	"os"
+
+	"github.com/joho/godotenv"
 )
 
 // Client handles communication with Google Books API
@@ -33,6 +36,11 @@ type BookResponse struct {
 
 // NewClient creates a new Google Books API client
 func NewClient() (*Client, error) {
+	// Try to load from .env file if godotenv is available
+	if err := godotenv.Load(); err != nil {
+		log.Printf("Warning: .env file not found or error loading it")
+	}
+
 	apiKey := os.Getenv("GOOGLE_BOOKS_API_KEY")
 	if apiKey == "" {
 		return nil, fmt.Errorf("GOOGLE_BOOKS_API_KEY environment variable is not set")
