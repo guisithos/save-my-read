@@ -50,6 +50,22 @@ func (s *JWTService) GenerateToken(userID, email string) (string, error) {
 	return token.SignedString(s.secretKey)
 }
 
+func (s *JWTService) ValidateToken(tokenString string) (*Claims, error) {
+	token, err := jwt.ParseWithClaims(tokenString, &Claims{}, func(token *jwt.Token) (interface{}, error) {
+		return s.secretKey, nil
+	})
+
+	if err != nil {
+		return nil, err
+	}
+
+	if claims, ok := token.Claims.(*Claims); ok && token.Valid {
+		return claims, nil
+	}
+
+	return nil, errors.New("invalid token")
+}
+
 type UserResponse struct {
 	ID    string `json:"id"`
 	Email string `json:"email"`

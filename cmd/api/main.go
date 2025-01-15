@@ -19,6 +19,9 @@ func main() {
 	if os.Getenv("GOOGLE_BOOKS_API_KEY") == "" {
 		log.Fatal("GOOGLE_BOOKS_API_KEY environment variable is not set")
 	}
+	if os.Getenv("JWT_SECRET") == "" {
+		log.Fatal("JWT_SECRET environment variable is not set")
+	}
 
 	// Initialize database connection
 	db, err := sql.Open("postgres", os.Getenv("DATABASE_URL"))
@@ -38,7 +41,7 @@ func main() {
 	}
 
 	// Initialize JWT service with 24h token duration
-	jwtService := auth.NewJWTService("your-jwt-secret", 24*time.Hour)
+	jwtService := auth.NewJWTService(os.Getenv("JWT_SECRET"), 24*time.Hour)
 
 	// Initialize services
 	bookService := application.NewBookService(bookRepo, userRepo)
@@ -49,6 +52,6 @@ func main() {
 	authHandler := handlers.NewAuthHandler(authService)
 
 	// Initialize and start server
-	srv := server.NewServer(bookHandler, authHandler, "8080", "your-jwt-secret")
+	srv := server.NewServer(bookHandler, authHandler, "8080", os.Getenv("JWT_SECRET"))
 	log.Fatal(srv.Start())
 }

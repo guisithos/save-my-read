@@ -20,7 +20,7 @@ func NewAuthService(userRepo user.Repository, tokenService auth.TokenService) *A
 	}
 }
 
-func (s *AuthService) Register(email, password, name string, genres []string) (*user.User, error) {
+func (s *AuthService) Register(email, password, name string, genres []string) (*auth.LoginResponse, error) {
 	// Check if user already exists
 	existing, _ := s.userRepo.FindByEmail(email)
 	if existing != nil {
@@ -38,7 +38,20 @@ func (s *AuthService) Register(email, password, name string, genres []string) (*
 		return nil, err
 	}
 
-	return newUser, nil
+	// Generate token
+	token, err := s.tokenService.GenerateToken(newUser.ID, newUser.Email)
+	if err != nil {
+		return nil, fmt.Errorf("failed to generate token: %w", err)
+	}
+
+	return &auth.LoginResponse{
+		Token: token,
+		User: auth.UserResponse{
+			ID:    newUser.ID,
+			Email: newUser.Email,
+			Name:  newUser.Name,
+		},
+	}, nil
 }
 
 func (s *AuthService) Login(email, password string) (*auth.LoginResponse, error) {
