@@ -2,9 +2,11 @@ package postgres
 
 import (
 	"database/sql"
+	"errors"
 	"fmt"
 
 	"github.com/guisithos/save-my-read/internal/domain/user"
+	"github.com/lib/pq"
 )
 
 type UserRepository struct {
@@ -17,39 +19,88 @@ func NewUserRepository(db *sql.DB) *UserRepository {
 
 func (r *UserRepository) Save(user *user.User) error {
 	query := `
-		INSERT INTO users (id, name, email, password, genres, created_at, updated_at)
+		INSERT INTO users (id, email, password_hash, name, genres, created_at, updated_at)
 		VALUES ($1, $2, $3, $4, $5, $6, $7)`
 
-	_, err := r.db.Exec(query, user.ID, user.Name, user.Email, user.Password, user.Genres, user.CreatedAt, user.UpdatedAt)
+	_, err := r.db.Exec(
+		query,
+		user.ID,
+		user.Email,
+		user.Password,
+		user.Name,
+		pq.Array(user.Genres),
+		user.CreatedAt,
+		user.UpdatedAt,
+	)
+
 	if err != nil {
+		// Check for unique constraint violation
+		if pqErr, ok := err.(*pq.Error); ok && pqErr.Code == "23505" {
+			return errors.New("email already exists")
+		}
 		return fmt.Errorf("error saving user: %w", err)
 	}
+
 	return nil
 }
 
 func (r *UserRepository) FindByEmail(email string) (*user.User, error) {
+	query := `
+		SELECT id, email, password_hash, name, genres, created_at, updated_at
+		FROM users
+		WHERE email = $1`
+
 	u := &user.User{}
-	query := `SELECT id, name, email, password, genres, created_at, updated_at FROM users WHERE email = $1`
-	err := r.db.QueryRow(query, email).Scan(&u.ID, &u.Name, &u.Email, &u.Password, &u.Genres, &u.CreatedAt, &u.UpdatedAt)
+	var genres []string
+
+	err := r.db.QueryRow(query, email).Scan(
+		&u.ID,
+		&u.Email,
+		&u.Password,
+		&u.Name,
+		pq.Array(&genres),
+		&u.CreatedAt,
+		&u.UpdatedAt,
+	)
+
 	if err == sql.ErrNoRows {
-		return nil, fmt.Errorf("user not found")
+		return nil, errors.New("user not found")
 	}
 	if err != nil {
 		return nil, fmt.Errorf("error finding user: %w", err)
 	}
+
+	u.Genres = genres
 	return u, nil
 }
 
 func (r *UserRepository) FindByID(id string) (*user.User, error) {
+	query := `
+		SELECT id, email, password_hash, name, genres, created_at, updated_at
+		FROM users
+		WHERE id = $1`
+
 	u := &user.User{}
-	query := `SELECT id, name, email, password, genres, created_at, updated_at FROM users WHERE id = $1`
-	err := r.db.QueryRow(query, id).Scan(&u.ID, &u.Name, &u.Email, &u.Password, &u.Genres, &u.CreatedAt, &u.UpdatedAt)
+	var genres []string
+
+	err := r.db.QueryRow(query, id).Scan(
+		&u.ID,
+		&u.Email,
+		&u.Password,
+		&u.Name,
+		pq.Array(&genres),
+		&u.CreatedAt,
+		&u.UpdatedAt,
+	)
+
 	if err == sql.ErrNoRows {
-		return nil, fmt.Errorf("user not found")
+		return nil, errors.New("user not found")
 	}
 	if err != nil {
 		return nil, fmt.Errorf("error finding user: %w", err)
 	}
+
+	u.Genres = genres
 	return u, nil
 }
 
