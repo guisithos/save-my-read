@@ -4,6 +4,7 @@ import (
 	"errors"
 	"time"
 
+	"github.com/google/uuid"
 	"golang.org/x/crypto/bcrypt"
 )
 
@@ -13,24 +14,24 @@ type Genre string
 // User represents the user domain entity
 type User struct {
 	ID        string
-	Name      string
 	Email     string
 	Password  string
-	Genres    []Genre
+	Name      string
+	Genres    []string
 	CreatedAt time.Time
 	UpdatedAt time.Time
 }
 
 // NewUser creates a new user with validated fields
-func NewUser(name, email, password string, genres []Genre) (*User, error) {
-	if name == "" {
-		return nil, errors.New("name cannot be empty")
-	}
+func NewUser(email, password, name string, genres []string) (*User, error) {
 	if email == "" {
 		return nil, errors.New("email cannot be empty")
 	}
 	if password == "" {
 		return nil, errors.New("password cannot be empty")
+	}
+	if name == "" {
+		return nil, errors.New("name cannot be empty")
 	}
 
 	// Hash password
@@ -39,13 +40,15 @@ func NewUser(name, email, password string, genres []Genre) (*User, error) {
 		return nil, err
 	}
 
+	now := time.Now()
 	return &User{
-		Name:      name,
+		ID:        uuid.New().String(),
 		Email:     email,
 		Password:  string(hashedPassword),
+		Name:      name,
 		Genres:    genres,
-		CreatedAt: time.Now(),
-		UpdatedAt: time.Now(),
+		CreatedAt: now,
+		UpdatedAt: now,
 	}, nil
 }
 

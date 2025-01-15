@@ -5,17 +5,20 @@ import (
 	"net/http"
 
 	"github.com/guisithos/save-my-read/internal/interfaces/http/handlers"
+	"github.com/guisithos/save-my-read/internal/interfaces/http/middleware"
 )
 
 // Server represents the HTTP server
 type Server struct {
 	bookHandler *handlers.BookHandler
+	authHandler *handlers.AuthHandler
 	viewHandler *handlers.ViewHandler
 	port        string
+	jwtKey      []byte
 }
 
 // NewServer creates a new HTTP server
-func NewServer(bookHandler *handlers.BookHandler, port string) *Server {
+func NewServer(bookHandler *handlers.BookHandler, authHandler *handlers.AuthHandler, port string, jwtKey string) *Server {
 	viewHandler, err := handlers.NewViewHandler()
 	if err != nil {
 		log.Fatalf("Failed to create view handler: %v", err)
@@ -23,8 +26,10 @@ func NewServer(bookHandler *handlers.BookHandler, port string) *Server {
 
 	return &Server{
 		bookHandler: bookHandler,
+		authHandler: authHandler,
 		viewHandler: viewHandler,
 		port:        port,
+		jwtKey:      []byte(jwtKey),
 	}
 }
 
@@ -39,6 +44,10 @@ func (s *Server) Start() error {
 	// View routes
 	mux.HandleFunc("/", s.viewHandler.Home)
 
+	// Auth routes
+	mux.HandleFunc("/api/auth/register", s.authHandler.Register)
+	mux.HandleFunc("/api/auth/login", s.authHandler.Login)
+
 	// API routes
 	mux.HandleFunc("/api/books/search", s.bookHandler.SearchBooks)
 	mux.HandleFunc("/api/books/add", s.bookHandler.AddToList)
@@ -46,7 +55,7 @@ func (s *Server) Start() error {
 	mux.HandleFunc("/api/books/status", s.bookHandler.UpdateBookStatus)
 
 	// Add middleware
-	handler := addMiddleware(mux)
+	handler := middleware.AuthMiddleware(s.jwtKey)(addMiddleware(mux))
 
 	log.Printf("Server starting on port %s", s.port)
 	return http.ListenAndServe(":"+s.port, handler)
