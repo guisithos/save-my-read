@@ -13,6 +13,11 @@ import (
 )
 
 func main() {
+	// Verify environment variables
+	if os.Getenv("GOOGLE_BOOKS_API_KEY") == "" {
+		log.Fatal("GOOGLE_BOOKS_API_KEY environment variable is not set")
+	}
+
 	// Initialize database connection
 	db, err := sql.Open("postgres", os.Getenv("DATABASE_URL"))
 	if err != nil {

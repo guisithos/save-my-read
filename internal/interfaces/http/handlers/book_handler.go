@@ -2,6 +2,7 @@ package handlers
 
 import (
 	"encoding/json"
+	"log"
 	"net/http"
 
 	"github.com/guisithos/save-my-read/internal/application"
@@ -36,12 +37,15 @@ func (h *BookHandler) SearchBooks(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	log.Printf("Searching for books with query: %s", query)
 	books, err := h.googleClient.SearchBooks(query)
 	if err != nil {
+		log.Printf("Search error: %v", err)
 		http.Error(w, "Failed to search books", http.StatusInternalServerError)
 		return
 	}
 
+	log.Printf("Found %d books", len(books.Items))
 	respondJSON(w, http.StatusOK, books)
 }
 

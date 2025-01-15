@@ -3,6 +3,7 @@ package googlebooks
 import (
 	"encoding/json"
 	"fmt"
+	"io/ioutil"
 	"log"
 	"net/http"
 	"net/url"
@@ -55,35 +56,28 @@ func NewClient() (*Client, error) {
 
 // SearchBooks searches for books using the Google Books API
 func (c *Client) SearchBooks(query string) (*BookResponse, error) {
-	// Build URL with query parameters
-	endpoint := fmt.Sprintf("%s/volumes", c.baseURL)
-	params := url.Values{}
-	params.Add("q", query)
-	params.Add("key", c.apiKey)
+	log.Printf("Making request to Google Books API with query: %s", query)
+	url := fmt.Sprintf("%s/volumes?q=%s&key=%s", c.baseURL, url.QueryEscape(query), c.apiKey)
 
-	// Create request
-	req, err := http.NewRequest("GET", endpoint+"?"+params.Encode(), nil)
+	resp, err := c.httpClient.Get(url)
 	if err != nil {
-		return nil, fmt.Errorf("error creating request: %w", err)
-	}
-
-	// Execute request
-	resp, err := c.httpClient.Do(req)
-	if err != nil {
-		return nil, fmt.Errorf("error executing request: %w", err)
+		log.Printf("Google Books API request failed: %v", err)
+		return nil, fmt.Errorf("failed to make request: %w", err)
 	}
 	defer resp.Body.Close()
 
-	// Check status code
 	if resp.StatusCode != http.StatusOK {
-		return nil, fmt.Errorf("API request failed with status: %d", resp.StatusCode)
+		body, _ := ioutil.ReadAll(resp.Body)
+		log.Printf("Google Books API error response: %s", string(body))
+		return nil, fmt.Errorf("unexpected status code: %d", resp.StatusCode)
 	}
 
-	// Parse response
-	var bookResponse BookResponse
-	if err := json.NewDecoder(resp.Body).Decode(&bookResponse); err != nil {
-		return nil, fmt.Errorf("error decoding response: %w", err)
+	var result BookResponse
+	if err := json.NewDecoder(resp.Body).Decode(&result); err != nil {
+		log.Printf("Failed to decode response: %v", err)
+		return nil, fmt.Errorf("failed to decode response: %w", err)
 	}
 
-	return &bookResponse, nil
+	log.Printf("Successfully retrieved %d books", len(result.Items))
+	return &result, nil
 }
