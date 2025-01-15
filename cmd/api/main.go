@@ -7,7 +7,7 @@ import (
 	"time"
 
 	"github.com/guisithos/save-my-read/internal/application"
-	"github.com/guisithos/save-my-read/internal/auth"
+	"github.com/guisithos/save-my-read/internal/domain/auth"
 	"github.com/guisithos/save-my-read/internal/infrastructure/googlebooks"
 	"github.com/guisithos/save-my-read/internal/infrastructure/postgres"
 	"github.com/guisithos/save-my-read/internal/interfaces/http/handlers"
