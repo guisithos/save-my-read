@@ -6,14 +6,39 @@
     <title>Save My Read</title>
     <script src="//unpkg.com/alpinejs" defer></script>
     <script src="//unpkg.com/tailwindcss@3.0.0/dist/tailwind.min.js"></script>
+    <style>
+        #debug-panel {
+            position: fixed;
+            bottom: 0;
+            left: 0;
+            right: 0;
+            background: #1a1a1a;
+            color: #fff;
+            padding: 10px;
+            font-family: monospace;
+            font-size: 12px;
+            display: none;
+        }
+    </style>
 </head>
 <body class="bg-gray-100">
     <div x-data="{ 
         books: [],
         searchQuery: '',
+        isLoading: false,
+        error: null,
         async searchBooks() {
-            const response = await fetch(`/api/books/search?q=${this.searchQuery}`);
-            this.books = await response.json();
+            this.isLoading = true;
+            this.error = null;
+            try {
+                const response = await fetch(`/api/books/search?q=${this.searchQuery}`);
+                if (!response.ok) throw new Error('Search failed');
+                this.books = await response.json();
+            } catch (err) {
+                this.error = err.message;
+            } finally {
+                this.isLoading = false;
+            }
         }
     }">
         <header class="bg-white shadow">
@@ -34,8 +59,18 @@
                         placeholder="Search for books...">
                 </div>
 
+                <!-- Loading State -->
+                <div x-show="isLoading" class="text-center py-4">
+                    <div class="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-500 mx-auto"></div>
+                </div>
+
+                <!-- Error Message -->
+                <div x-show="error" class="bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded mb-4" role="alert">
+                    <span x-text="error"></span>
+                </div>
+
                 <!-- Results -->
-                <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                <div x-show="!isLoading && !error" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
                     <template x-for="book in books.Items" :key="book.ID">
                         <div class="bg-white p-6 rounded-lg shadow">
                             <img :src="book.VolumeInfo.ImageLinks.Thumbnail" 
@@ -54,6 +89,17 @@
                 </div>
             </div>
         </main>
+    </div>
+    <div id="debug-panel" x-data="{ show: false }" @keydown.ctrl.d.window="show = !show" x-show="show">
+        <div class="max-w-7xl mx-auto">
+            <h3>Debug Information:</h3>
+            <pre x-text="JSON.stringify({
+                searchQuery,
+                booksCount: books?.Items?.length || 0,
+                isLoading,
+                error
+            }, null, 2)"></pre>
+        </div>
     </div>
 </body>
 </html> 

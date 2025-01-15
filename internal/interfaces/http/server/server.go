@@ -16,8 +16,14 @@ type Server struct {
 
 // NewServer creates a new HTTP server
 func NewServer(bookHandler *handlers.BookHandler, port string) *Server {
+	viewHandler, err := handlers.NewViewHandler()
+	if err != nil {
+		log.Fatalf("Failed to create view handler: %v", err)
+	}
+
 	return &Server{
 		bookHandler: bookHandler,
+		viewHandler: viewHandler,
 		port:        port,
 	}
 }
