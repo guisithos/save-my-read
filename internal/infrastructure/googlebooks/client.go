@@ -11,7 +11,7 @@ import (
 	"github.com/joho/godotenv"
 )
 
-// Client handles communication with Google Books API
+// Client handles communication with Google Books AP
 type Client struct {
 	apiKey     string
 	baseURL    string

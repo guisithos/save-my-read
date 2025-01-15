@@ -10,6 +10,7 @@ import (
 // Server represents the HTTP server
 type Server struct {
 	bookHandler *handlers.BookHandler
+	viewHandler *handlers.ViewHandler
 	port        string
 }
 
@@ -25,7 +26,14 @@ func NewServer(bookHandler *handlers.BookHandler, port string) *Server {
 func (s *Server) Start() error {
 	mux := http.NewServeMux()
 
-	// Book routes
+	// Static files
+	fs := http.FileServer(http.Dir("web/static"))
+	mux.Handle("/static/", http.StripPrefix("/static/", fs))
+
+	// View routes
+	mux.HandleFunc("/", s.viewHandler.Home)
+
+	// API routes
 	mux.HandleFunc("/api/books/search", s.bookHandler.SearchBooks)
 	mux.HandleFunc("/api/books/add", s.bookHandler.AddToList)
 	mux.HandleFunc("/api/books/user", s.bookHandler.GetUserBooks)
