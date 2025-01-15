@@ -4,8 +4,10 @@ import (
 	"database/sql"
 	"log"
 	"os"
+	"time"
 
 	"github.com/guisithos/save-my-read/internal/application"
+	"github.com/guisithos/save-my-read/internal/auth"
 	"github.com/guisithos/save-my-read/internal/infrastructure/googlebooks"
 	"github.com/guisithos/save-my-read/internal/infrastructure/postgres"
 	"github.com/guisithos/save-my-read/internal/interfaces/http/handlers"
@@ -35,9 +37,12 @@ func main() {
 		log.Fatal("Failed to create Google Books client:", err)
 	}
 
+	// Initialize JWT service with 24h token duration
+	jwtService := auth.NewJWTService("your-jwt-secret", 24*time.Hour)
+
 	// Initialize services
 	bookService := application.NewBookService(bookRepo, userRepo)
-	authService := application.NewAuthService(userRepo, "your-jwt-secret")
+	authService := application.NewAuthService(userRepo, jwtService)
 
 	// Initialize handlers
 	bookHandler := handlers.NewBookHandler(bookService, googleClient)

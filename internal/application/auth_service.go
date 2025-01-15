@@ -2,21 +2,21 @@ package application
 
 import (
 	"errors"
-	"time"
+	"fmt"
 
-	"github.com/golang-jwt/jwt"
+	"github.com/guisithos/save-my-read/internal/domain/auth"
 	"github.com/guisithos/save-my-read/internal/domain/user"
 )
 
 type AuthService struct {
-	userRepo user.Repository
-	jwtKey   []byte
+	userRepo     user.Repository
+	tokenService auth.TokenService
 }
 
-func NewAuthService(userRepo user.Repository, jwtKey string) *AuthService {
+func NewAuthService(userRepo user.Repository, tokenService auth.TokenService) *AuthService {
 	return &AuthService{
-		userRepo: userRepo,
-		jwtKey:   []byte(jwtKey),
+		userRepo:     userRepo,
+		tokenService: tokenService,
 	}
 }
 
@@ -41,26 +41,27 @@ func (s *AuthService) Register(email, password, name string, genres []string) (*
 	return newUser, nil
 }
 
-func (s *AuthService) Login(email, password string) (string, error) {
+func (s *AuthService) Login(email, password string) (*auth.LoginResponse, error) {
 	user, err := s.userRepo.FindByEmail(email)
 	if err != nil {
-		return "", errors.New("invalid credentials")
+		return nil, errors.New("invalid credentials")
 	}
 
 	if !user.ValidatePassword(password) {
-		return "", errors.New("invalid credentials")
+		return nil, errors.New("invalid credentials")
 	}
 
-	// Generate JWT token
-	token := jwt.NewWithClaims(jwt.SigningMethodHS256, jwt.MapClaims{
-		"user_id": user.ID,
-		"exp":     time.Now().Add(time.Hour * 24).Unix(),
-	})
-
-	tokenString, err := token.SignedString(s.jwtKey)
+	token, err := s.tokenService.GenerateToken(user.ID, user.Email)
 	if err != nil {
-		return "", err
+		return nil, fmt.Errorf("failed to generate token: %w", err)
 	}
 
-	return tokenString, nil
+	return &auth.LoginResponse{
+		Token: token,
+		User: auth.UserResponse{
+			ID:    user.ID,
+			Email: user.Email,
+			Name:  user.Name,
+		},
+	}, nil
 }
