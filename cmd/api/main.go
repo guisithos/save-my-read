@@ -32,11 +32,13 @@ func main() {
 
 	// Initialize services
 	bookService := application.NewBookService(bookRepo, userRepo)
+	authService := application.NewAuthService(userRepo, "your-jwt-secret")
 
 	// Initialize handlers
 	bookHandler := handlers.NewBookHandler(bookService, googleClient)
+	authHandler := handlers.NewAuthHandler(authService)
 
 	// Initialize and start server
-	srv := server.NewServer(bookHandler, "8080")
+	srv := server.NewServer(bookHandler, authHandler, "8080", "your-jwt-secret")
 	log.Fatal(srv.Start())
 }
