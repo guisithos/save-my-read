@@ -70,6 +70,24 @@
             error: null,
             isLoading: false
         },
+        closeModals() {
+            this.showLogin = false;
+            this.showRegister = false;
+            // Reset forms
+            this.loginForm = {
+                email: '',
+                password: '',
+                error: null,
+                isLoading: false
+            };
+            this.registerForm = {
+                email: '',
+                password: '',
+                name: '',
+                error: null,
+                isLoading: false
+            };
+        },
         showNotification(message, type = 'success') {
             this.notification = { message, type, show: true };
             setTimeout(() => this.notification.show = false, 3000);
@@ -113,7 +131,7 @@
                 
                 localStorage.setItem('token', data.data.token);
                 this.showNotification('Login successful!');
-                this.showLogin = false;
+                this.closeModals();
                 window.location.reload();
             } catch (err) {
                 this.showNotification(err.message, 'error');
@@ -148,7 +166,7 @@
                 localStorage.setItem('user', JSON.stringify(data.data.user));
                 
                 this.showNotification('Registration successful!');
-                this.showRegister = false;
+                this.closeModals();
                 window.location.reload();
             } catch (err) {
                 this.showNotification(err.message, 'error');
@@ -300,11 +318,18 @@
     <!-- Login Modal -->
     <div x-show="showLogin" 
          class="fixed inset-0 bg-gray-500 bg-opacity-75 flex items-center justify-center z-50"
-         @click.self="showLogin = false">
-        <div class="bg-white p-8 rounded-lg shadow-xl max-w-md w-full">
+         @click.self="closeModals()"
+         x-transition:enter="transition ease-out duration-300"
+         x-transition:enter-start="opacity-0"
+         x-transition:enter-end="opacity-100"
+         x-transition:leave="transition ease-in duration-200"
+         x-transition:leave-start="opacity-100"
+         x-transition:leave-end="opacity-0">
+        <div class="bg-white p-8 rounded-lg shadow-xl max-w-md w-full"
+             @click.outside="closeModals()">
             <div class="flex justify-between items-center mb-6">
                 <h2 class="text-2xl font-bold">Sign In</h2>
-                <button @click="showLogin = false" class="text-gray-400 hover:text-gray-500">
+                <button @click="closeModals()" class="text-gray-400 hover:text-gray-500">
                     <svg class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
                     </svg>
@@ -358,11 +383,18 @@
     <!-- Register Modal -->
     <div x-show="showRegister" 
          class="fixed inset-0 bg-gray-500 bg-opacity-75 flex items-center justify-center z-50"
-         @click.self="showRegister = false">
-        <div class="bg-white p-8 rounded-lg shadow-xl max-w-md w-full">
+         @click.self="closeModals()"
+         x-transition:enter="transition ease-out duration-300"
+         x-transition:enter-start="opacity-0"
+         x-transition:enter-end="opacity-100"
+         x-transition:leave="transition ease-in duration-200"
+         x-transition:leave-start="opacity-100"
+         x-transition:leave-end="opacity-0">
+        <div class="bg-white p-8 rounded-lg shadow-xl max-w-md w-full"
+             @click.outside="closeModals()">
             <div class="flex justify-between items-center mb-6">
                 <h2 class="text-2xl font-bold">Create Account</h2>
-                <button @click="showRegister = false" class="text-gray-400 hover:text-gray-500">
+                <button @click="closeModals()" class="text-gray-400 hover:text-gray-500">
                     <svg class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
                     </svg>
