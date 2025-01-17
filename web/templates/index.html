@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Save My Read</title>
+    <title>ReadQuest</title>
     <script src="//unpkg.com/alpinejs" defer></script>
     <script src="https://cdn.tailwindcss.com"></script>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
@@ -52,16 +52,26 @@
             inset: 0;
             background-color: rgba(0, 0, 0, 0.5);
             z-index: 40;
+            opacity: 0;
+            visibility: hidden;
+            transition: opacity 0.2s, visibility 0.2s;
         }
         .modal-backdrop.show {
             display: flex;
+            opacity: 1;
+            visibility: visible;
         }
         .modal {
             display: none;
             z-index: 50;
+            opacity: 0;
+            visibility: hidden;
+            transition: opacity 0.2s, visibility 0.2s;
         }
         .modal.show {
             display: block;
+            opacity: 1;
+            visibility: visible;
         }
     </style>
 </head>
@@ -87,7 +97,52 @@
             error: null,
             isLoading: false
         },
+        async searchBooks() {
+            if (!this.searchQuery.trim()) {
+                this.showNotification('Please enter a search query', 'error');
+                return;
+            }
+            
+            this.isLoading = true;
+            this.error = null;
+            this.books = [];
+            
+            try {
+                const response = await fetch(`/api/books/search?q=${encodeURIComponent(this.searchQuery)}`, {
+                    method: 'GET',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    }
+                });
+                
+                if (!response.ok) {
+                    throw new Error('Failed to search books');
+                }
+                
+                const data = await response.json();
+                this.books = data;
+                
+                if (!data.items || data.items.length === 0) {
+                    this.error = 'No books found. Try a different search term.';
+                }
+            } catch (err) {
+                this.error = err.message;
+                this.showNotification(err.message, 'error');
+            } finally {
+                this.isLoading = false;
+            }
+        },
         init() {
+            // Close all modals on page load
+            this.closeModals();
+            
+            // Check if user is already logged in
+            const token = localStorage.getItem('token');
+            if (token) {
+                this.showLogin = false;
+                this.showRegister = false;
+            }
+            
             this.$watch('showLogin', value => {
                 if (!value) this.closeModals();
             });
