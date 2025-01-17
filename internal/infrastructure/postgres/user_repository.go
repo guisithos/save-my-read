@@ -2,10 +2,8 @@ package postgres
 
 import (
 	"database/sql"
-	"errors"
-	"fmt"
 
-	"github.com/guisithos/save-my-read/internal/domain/user"
+	"github.com/guisithos/save-my-read/internal/domain/auth"
 	"github.com/lib/pq"
 )
 
@@ -17,112 +15,95 @@ func NewUserRepository(db *sql.DB) *UserRepository {
 	return &UserRepository{db: db}
 }
 
-func (r *UserRepository) Save(user *user.User) error {
+func (r *UserRepository) Create(user *auth.User) error {
 	query := `
-		INSERT INTO users (id, email, password_hash, name, genres, created_at, updated_at)
-		VALUES ($1, $2, $3, $4, $5, $6, $7)`
+		INSERT INTO users (id, email, name, password, genres)
+		VALUES ($1, $2, $3, $4, $5)
+	`
 
-	_, err := r.db.Exec(
-		query,
+	_, err := r.db.Exec(query,
 		user.ID,
 		user.Email,
-		user.Password,
 		user.Name,
+		user.Password,
 		pq.Array(user.Genres),
-		user.CreatedAt,
-		user.UpdatedAt,
 	)
 
-	if err != nil {
-		// Check for unique constraint violation
-		if pqErr, ok := err.(*pq.Error); ok && pqErr.Code == "23505" {
-			return errors.New("email already exists")
-		}
-		return fmt.Errorf("error saving user: %w", err)
-	}
-
-	return nil
+	return err
 }
 
-func (r *UserRepository) FindByEmail(email string) (*user.User, error) {
+func (r *UserRepository) FindByEmail(email string) (*auth.User, error) {
 	query := `
-		SELECT id, email, password_hash, name, genres, created_at, updated_at
+		SELECT id, email, name, password, genres
 		FROM users
-		WHERE email = $1`
+		WHERE email = $1
+	`
 
-	u := &user.User{}
+	user := &auth.User{}
 	var genres []string
 
 	err := r.db.QueryRow(query, email).Scan(
-		&u.ID,
-		&u.Email,
-		&u.Password,
-		&u.Name,
+		&user.ID,
+		&user.Email,
+		&user.Name,
+		&user.Password,
 		pq.Array(&genres),
-		&u.CreatedAt,
-		&u.UpdatedAt,
 	)
 
 	if err == sql.ErrNoRows {
-		return nil, errors.New("user not found")
+		return nil, nil
 	}
 	if err != nil {
-		return nil, fmt.Errorf("error finding user: %w", err)
+		return nil, err
 	}
 
-	u.Genres = genres
-	return u, nil
+	user.Genres = genres
+	return user, nil
 }
 
-func (r *UserRepository) FindByID(id string) (*user.User, error) {
+func (r *UserRepository) FindByID(id string) (*auth.User, error) {
 	query := `
-		SELECT id, email, password_hash, name, genres, created_at, updated_at
+		SELECT id, email, name, password, genres
 		FROM users
-		WHERE id = $1`
+		WHERE id = $1
+	`
 
-	u := &user.User{}
+	user := &auth.User{}
 	var genres []string
 
 	err := r.db.QueryRow(query, id).Scan(
-		&u.ID,
-		&u.Email,
-		&u.Password,
-		&u.Name,
+		&user.ID,
+		&user.Email,
+		&user.Name,
+		&user.Password,
 		pq.Array(&genres),
-		&u.CreatedAt,
-		&u.UpdatedAt,
 	)
 
 	if err == sql.ErrNoRows {
-		return nil, errors.New("user not found")
+		return nil, nil
 	}
 	if err != nil {
-		return nil, fmt.Errorf("error finding user: %w", err)
+		return nil, err
 	}
 
-	u.Genres = genres
-	return u, nil
+	user.Genres = genres
+	return user, nil
 }
 
-func (r *UserRepository) Update(user *user.User) error {
+func (r *UserRepository) Update(user *auth.User) error {
 	query := `
-		UPDATE users 
-		SET name = $1, email = $2, password = $3, genres = $4, updated_at = $5
-		WHERE id = $6`
+		UPDATE users
+		SET email = $2, name = $3, password = $4, genres = $5
+		WHERE id = $1
+	`
 
-	result, err := r.db.Exec(query, user.Name, user.Email, user.Password, user.Genres, user.UpdatedAt, user.ID)
-	if err != nil {
-		return fmt.Errorf("error updating user: %w", err)
-	}
+	_, err := r.db.Exec(query,
+		user.ID,
+		user.Email,
+		user.Name,
+		user.Password,
+		pq.Array(user.Genres),
+	)
 
-	rows, err := result.RowsAffected()
-	if err != nil {
-		return fmt.Errorf("error checking rows affected: %w", err)
-	}
-
-	if rows == 0 {
-		return fmt.Errorf("user not found")
-	}
-
-	return nil
+	return err
 }

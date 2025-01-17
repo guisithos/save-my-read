@@ -1,80 +1,73 @@
 package application
 
 import (
-	"errors"
-	"fmt"
-
+	"github.com/google/uuid"
 	"github.com/guisithos/save-my-read/internal/domain/auth"
-	"github.com/guisithos/save-my-read/internal/domain/user"
+	"golang.org/x/crypto/bcrypt"
 )
 
 type AuthService struct {
-	userRepo     user.Repository
+	userRepo     auth.UserRepository
 	tokenService auth.TokenService
 }
 
-func NewAuthService(userRepo user.Repository, tokenService auth.TokenService) *AuthService {
+func NewAuthService(userRepo auth.UserRepository, tokenService auth.TokenService) *AuthService {
 	return &AuthService{
 		userRepo:     userRepo,
 		tokenService: tokenService,
 	}
 }
 
-func (s *AuthService) Register(email, password, name string, genres []string) (*auth.LoginResponse, error) {
+func (s *AuthService) Register(email, password, name string, genres []string) (*auth.User, error) {
 	// Check if user already exists
-	existing, _ := s.userRepo.FindByEmail(email)
-	if existing != nil {
-		return nil, errors.New("email already registered")
+	existingUser, err := s.userRepo.FindByEmail(email)
+	if err != nil {
+		return nil, err
+	}
+	if existingUser != nil {
+		return nil, auth.ErrEmailAlreadyExists
+	}
+
+	// Hash password
+	hashedPassword, err := bcrypt.GenerateFromPassword([]byte(password), bcrypt.DefaultCost)
+	if err != nil {
+		return nil, err
 	}
 
 	// Create new user
-	newUser, err := user.NewUser(email, password, name, genres)
-	if err != nil {
+	user := &auth.User{
+		ID:       uuid.New().String(),
+		Email:    email,
+		Password: string(hashedPassword),
+		Name:     name,
+		Genres:   genres,
+	}
+
+	// Save user to database
+	if err := s.userRepo.Create(user); err != nil {
 		return nil, err
 	}
 
-	// Save user
-	if err := s.userRepo.Save(newUser); err != nil {
-		return nil, err
-	}
-
-	// Generate token
-	token, err := s.tokenService.GenerateToken(newUser.ID, newUser.Email)
-	if err != nil {
-		return nil, fmt.Errorf("failed to generate token: %w", err)
-	}
-
-	return &auth.LoginResponse{
-		Token: token,
-		User: auth.UserResponse{
-			ID:    newUser.ID,
-			Email: newUser.Email,
-			Name:  newUser.Name,
-		},
-	}, nil
+	return user, nil
 }
 
-func (s *AuthService) Login(email, password string) (*auth.LoginResponse, error) {
+func (s *AuthService) Login(email, password string) (string, error) {
 	user, err := s.userRepo.FindByEmail(email)
 	if err != nil {
-		return nil, errors.New("invalid credentials")
+		return "", err
+	}
+	if user == nil {
+		return "", auth.ErrInvalidCredentials
 	}
 
-	if !user.ValidatePassword(password) {
-		return nil, errors.New("invalid credentials")
-	}
-
-	token, err := s.tokenService.GenerateToken(user.ID, user.Email)
+	err = bcrypt.CompareHashAndPassword([]byte(user.Password), []byte(password))
 	if err != nil {
-		return nil, fmt.Errorf("failed to generate token: %w", err)
+		return "", auth.ErrInvalidCredentials
 	}
 
-	return &auth.LoginResponse{
-		Token: token,
-		User: auth.UserResponse{
-			ID:    user.ID,
-			Email: user.Email,
-			Name:  user.Name,
-		},
-	}, nil
+	return s.tokenService.GenerateToken(user.ID, user.Email)
+}
+
+func (s *AuthService) GetUserByID(id string) (*auth.User, error) {
+	return s.userRepo.FindByID(id)
 }

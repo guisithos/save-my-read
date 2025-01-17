@@ -10,32 +10,31 @@ import (
 
 	"github.com/guisithos/save-my-read/internal/application"
 	"github.com/guisithos/save-my-read/internal/domain/auth"
-	"github.com/guisithos/save-my-read/internal/domain/user"
 )
 
 var errUserNotFound = errors.New("user not found")
 
 type mockUserRepo struct {
-	users map[string]*user.User
+	users map[string]*auth.User
 }
 
 func newMockUserRepo() *mockUserRepo {
-	return &mockUserRepo{users: make(map[string]*user.User)}
+	return &mockUserRepo{users: make(map[string]*auth.User)}
 }
 
-func (m *mockUserRepo) Save(user *user.User) error {
+func (m *mockUserRepo) Save(user *auth.User) error {
 	m.users[user.Email] = user
 	return nil
 }
 
-func (m *mockUserRepo) FindByEmail(email string) (*user.User, error) {
+func (m *mockUserRepo) FindByEmail(email string) (*auth.User, error) {
 	if user, exists := m.users[email]; exists {
 		return user, nil
 	}
 	return nil, errUserNotFound
 }
 
-func (m *mockUserRepo) FindByID(id string) (*user.User, error) {
+func (m *mockUserRepo) FindByID(id string) (*auth.User, error) {
 	for _, u := range m.users {
 		if u.ID == id {
 			return u, nil
@@ -44,7 +43,7 @@ func (m *mockUserRepo) FindByID(id string) (*user.User, error) {
 	return nil, errUserNotFound
 }
 
-func (m *mockUserRepo) Update(user *user.User) error {
+func (m *mockUserRepo) Update(user *auth.User) error {
 	if _, exists := m.users[user.Email]; !exists {
 		return errUserNotFound
 	}
@@ -52,14 +51,19 @@ func (m *mockUserRepo) Update(user *user.User) error {
 	return nil
 }
 
-type mockTokenService struct{}
-
-func (m *mockTokenService) GenerateToken(userID, email string) (string, error) {
-	return "mock_token", nil
+func (m *mockUserRepo) Create(user *auth.User) error {
+	m.users[user.ID] = user
+	return nil
 }
 
-func (m *mockTokenService) ValidateToken(tokenString string) (*auth.Claims, error) {
-	return &auth.Claims{UserID: "mock_id", Email: "test@example.com"}, nil
+type mockTokenService struct{}
+
+func (m *mockTokenService) GenerateToken(userID string, email string) (string, error) {
+	return "test-token", nil
+}
+
+func (m *mockTokenService) ValidateToken(token string) (*auth.Claims, error) {
+	return &auth.Claims{UserID: "test-id", Email: "test@example.com"}, nil
 }
 
 func TestAuthHandler_Register(t *testing.T) {
@@ -117,7 +121,7 @@ func TestAuthHandler_Login(t *testing.T) {
 	handler := NewAuthHandler(authService)
 
 	// Create a test user first
-	testUser, _ := user.NewUser("test@example.com", "password123", "Test User", []string{"fiction"})
+	testUser, _ := auth.NewUser("test@example.com", "password123", "Test User", []string{"fiction"})
 	repo.Save(testUser)
 
 	tests := []struct {

@@ -3,55 +3,48 @@ package main
 import (
 	"database/sql"
 	"log"
+	"net/http"
 	"os"
 	"time"
 
 	"github.com/guisithos/save-my-read/internal/application"
 	"github.com/guisithos/save-my-read/internal/domain/auth"
-	"github.com/guisithos/save-my-read/internal/infrastructure/googlebooks"
 	"github.com/guisithos/save-my-read/internal/infrastructure/postgres"
 	"github.com/guisithos/save-my-read/internal/interfaces/http/handlers"
 	"github.com/guisithos/save-my-read/internal/interfaces/http/server"
+	_ "github.com/lib/pq"
 )
 
 func main() {
-	// Verify environment variables
-	if os.Getenv("GOOGLE_BOOKS_API_KEY") == "" {
-		log.Fatal("GOOGLE_BOOKS_API_KEY environment variable is not set")
-	}
-	if os.Getenv("JWT_SECRET") == "" {
-		log.Fatal("JWT_SECRET environment variable is not set")
+	// Load environment variables
+	dbURL := os.Getenv("DATABASE_URL")
+	if dbURL == "" {
+		dbURL = "postgres://postgres:postgres@localhost:5432/save_my_read?sslmode=disable"
 	}
 
-	// Initialize database connection
-	db, err := sql.Open("postgres", os.Getenv("DATABASE_URL"))
+	// Connect to database
+	db, err := sql.Open("postgres", dbURL)
 	if err != nil {
-		log.Fatal("Failed to connect to database:", err)
+		log.Fatalf("Error connecting to database: %v", err)
 	}
 	defer db.Close()
 
-	// Initialize repositories
-	bookRepo := postgres.NewBookRepository(db)
-	userRepo := postgres.NewUserRepository(db)
-
-	// Initialize Google Books client
-	googleClient, err := googlebooks.NewClient()
-	if err != nil {
-		log.Fatal("Failed to create Google Books client:", err)
+	// Test database connection
+	if err := db.Ping(); err != nil {
+		log.Fatalf("Error pinging database: %v", err)
 	}
 
-	// Initialize JWT service with 24h token duration
-	jwtService := auth.NewJWTService(os.Getenv("JWT_SECRET"), 24*time.Hour)
+	// Initialize repositories
+	userRepo := postgres.NewUserRepository(db)
 
 	// Initialize services
-	bookService := application.NewBookService(bookRepo, userRepo)
+	jwtService := auth.NewJWTService(os.Getenv("JWT_SECRET"), 24*time.Hour)
 	authService := application.NewAuthService(userRepo, jwtService)
 
 	// Initialize handlers
-	bookHandler := handlers.NewBookHandler(bookService, googleClient)
 	authHandler := handlers.NewAuthHandler(authService)
 
 	// Initialize and start server
-	srv := server.NewServer(bookHandler, authHandler, "8080", os.Getenv("JWT_SECRET"))
-	log.Fatal(srv.Start())
+	srv := server.NewServer(authHandler)
+	log.Fatal(http.ListenAndServe(":8080", srv.Router()))
 }
