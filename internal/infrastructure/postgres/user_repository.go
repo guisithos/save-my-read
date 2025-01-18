@@ -18,11 +18,14 @@ func NewUserRepository(db *sql.DB) *UserRepository {
 }
 
 func (r *UserRepository) Save(user *user.User) error {
+	fmt.Printf("Attempting to save user: %+v\n", user)
+
 	query := `
 		INSERT INTO users (id, email, password_hash, name, genres, created_at, updated_at)
-		VALUES ($1, $2, $3, $4, $5, $6, $7)`
+		VALUES ($1, $2, $3, $4, $5, $6, $7)
+		RETURNING id`
 
-	_, err := r.db.Exec(
+	result, err := r.db.Exec(
 		query,
 		user.ID,
 		user.Email,
@@ -34,13 +37,19 @@ func (r *UserRepository) Save(user *user.User) error {
 	)
 
 	if err != nil {
+		fmt.Printf("Error saving user: %v\n", err)
 		// Check for unique constraint violation
-		if pqErr, ok := err.(*pq.Error); ok && pqErr.Code == "23505" {
-			return errors.New("email already exists")
+		if pqErr, ok := err.(*pq.Error); ok {
+			fmt.Printf("PostgreSQL Error Code: %s, Message: %s\n", pqErr.Code, pqErr.Message)
+			if pqErr.Code == "23505" {
+				return errors.New("email already exists")
+			}
 		}
 		return fmt.Errorf("error saving user: %w", err)
 	}
 
+	rows, _ := result.RowsAffected()
+	fmt.Printf("Successfully saved user. Rows affected: %d\n", rows)
 	return nil
 }
 
@@ -67,6 +76,7 @@ func (r *UserRepository) FindByEmail(email string) (*user.User, error) {
 		return nil, errors.New("user not found")
 	}
 	if err != nil {
+		fmt.Printf("Error finding user by email: %v\n", err)
 		return nil, fmt.Errorf("error finding user: %w", err)
 	}
 
@@ -97,6 +107,7 @@ func (r *UserRepository) FindByID(id string) (*user.User, error) {
 		return nil, errors.New("user not found")
 	}
 	if err != nil {
+		fmt.Printf("Error finding user by ID: %v\n", err)
 		return nil, fmt.Errorf("error finding user: %w", err)
 	}
 
@@ -107,11 +118,12 @@ func (r *UserRepository) FindByID(id string) (*user.User, error) {
 func (r *UserRepository) Update(user *user.User) error {
 	query := `
 		UPDATE users 
-		SET name = $1, email = $2, password = $3, genres = $4, updated_at = $5
+		SET name = $1, email = $2, password_hash = $3, genres = $4, updated_at = $5
 		WHERE id = $6`
 
-	result, err := r.db.Exec(query, user.Name, user.Email, user.Password, user.Genres, user.UpdatedAt, user.ID)
+	result, err := r.db.Exec(query, user.Name, user.Email, user.Password, pq.Array(user.Genres), user.UpdatedAt, user.ID)
 	if err != nil {
+		fmt.Printf("Error updating user: %v\n", err)
 		return fmt.Errorf("error updating user: %w", err)
 	}
 

@@ -41,24 +41,37 @@ func (s *Server) Start() error {
 	fs := http.FileServer(http.Dir("web/static"))
 	mux.Handle("/static/", http.StripPrefix("/static/", fs))
 
+	// Create a base handler with CORS middleware
+	baseHandler := addMiddleware(mux)
+
 	// View routes
 	mux.HandleFunc("/", s.viewHandler.Home)
 
-	// Auth routes
-	mux.HandleFunc("/api/auth/register", s.authHandler.Register)
-	mux.HandleFunc("/api/auth/login", s.authHandler.Login)
+	// Auth routes (no auth middleware)
+	mux.HandleFunc("/api/auth/register", addMiddleware(http.HandlerFunc(s.authHandler.Register)).ServeHTTP)
+	mux.HandleFunc("/api/auth/login", addMiddleware(http.HandlerFunc(s.authHandler.Login)).ServeHTTP)
 
-	// API routes
-	mux.HandleFunc("/api/books/search", s.bookHandler.SearchBooks)
-	mux.HandleFunc("/api/books/add", s.bookHandler.AddToList)
-	mux.HandleFunc("/api/books/user", s.bookHandler.GetUserBooks)
-	mux.HandleFunc("/api/books/status", s.bookHandler.UpdateBookStatus)
+	// Protected API routes (with auth middleware)
+	protectedMux := http.NewServeMux()
+	protectedMux.HandleFunc("/api/books/search", s.bookHandler.SearchBooks)
+	protectedMux.HandleFunc("/api/books/add", s.bookHandler.AddToList)
+	protectedMux.HandleFunc("/api/books/user", s.bookHandler.GetUserBooks)
+	protectedMux.HandleFunc("/api/books/status", s.bookHandler.UpdateBookStatus)
 
-	// Add middleware
-	handler := middleware.AuthMiddleware(s.jwtKey)(addMiddleware(mux))
+	// Add auth middleware only to protected routes
+	protectedHandler := middleware.AuthMiddleware(s.jwtKey)(addMiddleware(protectedMux))
+
+	// Combine handlers
+	finalHandler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path == "/" || r.URL.Path == "/api/auth/register" || r.URL.Path == "/api/auth/login" {
+			baseHandler.ServeHTTP(w, r)
+			return
+		}
+		protectedHandler.ServeHTTP(w, r)
+	})
 
 	log.Printf("Server starting on port %s", s.port)
-	return http.ListenAndServe(":"+s.port, handler)
+	return http.ListenAndServe(":"+s.port, finalHandler)
 }
 
 func addMiddleware(next http.Handler) http.Handler {
