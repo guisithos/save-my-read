@@ -45,9 +45,15 @@ func (s *Server) SetupRoutes() http.Handler {
 	authMiddleware := middleware.NewAuthMiddleware(s.tokenService)
 	mux.Handle("/api/books/", authMiddleware(protectedMux))
 
-	// Serve static files
-	fs := http.FileServer(http.Dir("web"))
-	mux.Handle("/", fs)
+	// Serve static files and templates
+	fs := http.FileServer(http.Dir("web/templates"))
+	mux.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path == "/" {
+			http.ServeFile(w, r, "web/templates/index.html")
+			return
+		}
+		fs.ServeHTTP(w, r)
+	})
 
 	return mux
 }
