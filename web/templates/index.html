@@ -97,58 +97,17 @@
             error: null,
             isLoading: false
         },
-        async searchBooks() {
-            if (!this.searchQuery.trim()) {
-                this.showNotification('Please enter a search query', 'error');
-                return;
-            }
-            
-            this.isLoading = true;
-            this.error = null;
-            this.books = [];
-            
-            try {
-                const response = await fetch(`/api/books/search?q=${encodeURIComponent(this.searchQuery)}`, {
-                    method: 'GET',
-                    headers: {
-                        'Content-Type': 'application/json',
-                    }
-                });
-                
-                if (!response.ok) {
-                    throw new Error('Failed to search books');
-                }
-                
-                const data = await response.json();
-                this.books = data;
-                
-                if (!data.items || data.items.length === 0) {
-                    this.error = 'No books found. Try a different search term.';
-                }
-            } catch (err) {
-                this.error = err.message;
-                this.showNotification(err.message, 'error');
-            } finally {
-                this.isLoading = false;
-            }
+        switchToRegister() {
+            this.showLogin = false;
+            setTimeout(() => {
+                this.showRegister = true;
+            }, 100);
         },
-        init() {
-            // Close all modals on page load
-            this.closeModals();
-            
-            // Check if user is already logged in
-            const token = localStorage.getItem('token');
-            if (token) {
-                this.showLogin = false;
-                this.showRegister = false;
-            }
-            
-            this.$watch('showLogin', value => {
-                if (!value) this.closeModals();
-            });
-            this.$watch('showRegister', value => {
-                if (!value) this.closeModals();
-            });
+        switchToLogin() {
+            this.showRegister = false;
+            setTimeout(() => {
+                this.showLogin = true;
+            }, 100);
         },
         closeModals() {
             this.showLogin = false;
@@ -209,23 +168,39 @@
                 });
                 
                 const data = await response.json();
-                if (!data.success) throw new Error(data.error);
+                if (!data.success) throw new Error(data.error || 'Login failed');
                 
                 localStorage.setItem('token', data.data.token);
-                this.showNotification('Login successful!');
+                localStorage.setItem('user', JSON.stringify(data.data.user));
+                
+                this.showNotification('Welcome back!', 'success');
                 this.closeModals();
                 window.location.reload();
             } catch (err) {
                 this.showNotification(err.message, 'error');
+                console.error('Login error:', err);
             } finally {
                 this.loginForm.isLoading = false;
             }
         },
         async handleRegister() {
-            if (!this.validateForm('register')) return;
+            console.log('Starting registration process...');
+            if (!this.validateForm('register')) {
+                console.log('Form validation failed');
+                return;
+            }
             
             this.registerForm.isLoading = true;
             this.registerForm.error = null;
+            
+            const registerData = {
+                email: this.registerForm.email,
+                password: this.registerForm.password,
+                name: this.registerForm.name,
+                genres: []
+            };
+            
+            console.log('Sending registration request:', { email: registerData.email, name: registerData.name });
             
             try {
                 const response = await fetch('/api/auth/register', {
@@ -233,25 +208,32 @@
                     headers: {
                         'Content-Type': 'application/json',
                     },
-                    body: JSON.stringify({
-                        email: this.registerForm.email,
-                        password: this.registerForm.password,
-                        name: this.registerForm.name,
-                        genres: []
-                    }),
+                    body: JSON.stringify(registerData),
                 });
                 
+                console.log('Registration response status:', response.status);
+                
                 const data = await response.json();
-                if (!data.success) throw new Error(data.error);
+                console.log('Registration response data:', data);
+                
+                if (!response.ok) {
+                    throw new Error(data.error || `Registration failed with status ${response.status}`);
+                }
+                
+                if (!data.success) {
+                    throw new Error(data.error || 'Registration failed');
+                }
                 
                 localStorage.setItem('token', data.data.token);
                 localStorage.setItem('user', JSON.stringify(data.data.user));
                 
-                this.showNotification('Registration successful!');
+                this.showNotification('Registration successful! Welcome to SaveMyRead!', 'success');
                 this.closeModals();
                 window.location.reload();
             } catch (err) {
-                this.showNotification(err.message, 'error');
+                console.error('Registration error:', err);
+                this.showNotification(err.message || 'Failed to register. Please try again.', 'error');
+                this.registerForm.error = err.message;
             } finally {
                 this.registerForm.isLoading = false;
             }
@@ -260,13 +242,26 @@
         <header class="bg-white shadow-sm fixed w-full top-0 z-10">
             <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4 flex justify-between items-center">
                 <div class="text-xl font-bold text-gray-900">ReadQuest</div>
-                <div>
-                    <button 
-                        @click="showLogin = true"
-                        class="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md text-white bg-indigo-600 hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500"
-                    >
-                        Sign In
-                    </button>
+                <div x-data="{ user: JSON.parse(localStorage.getItem('user') || 'null') }">
+                    <template x-if="!user">
+                        <button 
+                            @click="showLogin = true"
+                            class="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md text-white bg-indigo-600 hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500"
+                        >
+                            Sign In
+                        </button>
+                    </template>
+                    <template x-if="user">
+                        <div class="flex items-center space-x-4">
+                            <span class="text-gray-700" x-text="'Welcome, ' + user.name"></span>
+                            <button 
+                                @click="localStorage.removeItem('token'); localStorage.removeItem('user'); window.location.reload();"
+                                class="text-sm text-gray-600 hover:text-gray-900"
+                            >
+                                Sign Out
+                            </button>
+                        </div>
+                    </template>
                 </div>
             </div>
         </header>
@@ -284,70 +279,71 @@
             </div>
 
             <!-- Search Section -->
-            <div class="max-w-2xl mx-auto mb-12">
-                <div class="mt-1 relative rounded-md shadow-sm">
-                    <input
-                        type="text"
-                        x-model="searchQuery"
-                        @keyup.enter="searchBooks()"
-                        class="block w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-indigo-500 focus:border-indigo-500"
-                        placeholder="Search for books..."
-                    >
-                    <button 
-                        @click="searchBooks()"
-                        class="absolute inset-y-0 right-0 px-4 flex items-center bg-indigo-600 text-white rounded-r-lg hover:bg-indigo-700"
-                    >
-                        Search
-                    </button>
-                </div>
-            </div>
-
-            <!-- Loading State -->
-            <div x-show="isLoading" class="text-center py-12">
-                <div class="animate-spin rounded-full h-12 w-12 border-b-2 border-indigo-600 mx-auto"></div>
-            </div>
-
-            <!-- Error Message -->
-            <div x-show="error" class="bg-red-50 border-l-4 border-red-400 p-4 mb-8" role="alert">
-                <p class="text-red-700" x-text="error"></p>
-            </div>
-
-            <!-- Results Grid -->
-            <div x-show="books && books.items && books.items.length > 0" 
-                 class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
-                <template x-for="book in books.items" :key="book.id">
-                    <div class="bg-white rounded-lg shadow-sm hover:shadow-md transition-shadow duration-200 overflow-hidden">
-                        <img 
-                            :src="book.volumeInfo.imageLinks?.thumbnail" 
-                            class="w-full h-64 object-cover"
-                            @error="$el.src = 'https://via.placeholder.com/300x400?text=No+Image'"
+            <div x-data="searchData">
+                <div class="max-w-2xl mx-auto mb-12">
+                    <div class="mt-1 relative rounded-md shadow-sm">
+                        <input
+                            type="text"
+                            x-model="searchQuery"
+                            @keyup.enter="searchBooks()"
+                            class="block w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-indigo-500 focus:border-indigo-500"
+                            placeholder="Search for books..."
                         >
-                        <div class="p-6">
-                            <h2 
-                                x-text="book.volumeInfo.title" 
-                                class="text-lg font-semibold text-gray-900 mb-2 line-clamp-2"
-                            ></h2>
-                            <p 
-                                x-text="book.volumeInfo.authors?.join(', ')" 
-                                class="text-sm text-gray-600 mb-4"
-                            ></p>
-                            <p 
-                                x-text="book.volumeInfo.categories?.join(', ')" 
-                                class="text-xs text-gray-500 mb-2"
-                            ></p>
-                            <p 
-                                x-text="book.volumeInfo.description?.substring(0, 150) + '...'" 
-                                class="text-sm text-gray-600 mb-4 line-clamp-3"
-                            ></p>
-                            <button 
-                                @click="addToWishlist(book.id)"
-                                class="w-full inline-flex justify-center items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md text-white bg-indigo-600 hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500"
-                            >
-                                Add to Wishlist
-                            </button>
-                        </div>
+                        <button 
+                            @click="searchBooks()"
+                            class="absolute inset-y-0 right-0 px-4 flex items-center bg-indigo-600 text-white rounded-r-lg hover:bg-indigo-700"
+                        >
+                            Search
+                        </button>
                     </div>
-                </template>
+                </div>
+
+                <!-- Loading State -->
+                <div x-show="isLoading" class="text-center py-12">
+                    <div class="animate-spin rounded-full h-12 w-12 border-b-2 border-indigo-600 mx-auto"></div>
+                </div>
+
+                <!-- Error Message -->
+                <div x-show="error" class="bg-red-50 border-l-4 border-red-400 p-4 mb-8" role="alert">
+                    <p class="text-red-700" x-text="error"></p>
+                </div>
+
+                <!-- Results Grid -->
+                <div x-show="books.items && books.items.length > 0" 
+                     class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
+                    <template x-for="book in books.items" :key="book.id">
+                        <div class="bg-white rounded-lg shadow-sm hover:shadow-md transition-shadow duration-200 overflow-hidden">
+                            <img 
+                                :src="book.volumeInfo.imageLinks?.thumbnail || 'https://via.placeholder.com/300x400?text=No+Image'" 
+                                class="w-full h-64 object-cover"
+                            >
+                            <div class="p-6">
+                                <h2 
+                                    x-text="book.volumeInfo.title" 
+                                    class="text-lg font-semibold text-gray-900 mb-2 line-clamp-2"
+                                ></h2>
+                                <p 
+                                    x-text="book.volumeInfo.authors?.join(', ')" 
+                                    class="text-sm text-gray-600 mb-4"
+                                ></p>
+                                <p 
+                                    x-text="book.volumeInfo.categories?.join(', ')" 
+                                    class="text-xs text-gray-500 mb-2"
+                                ></p>
+                                <p 
+                                    x-text="book.volumeInfo.description?.substring(0, 150) + '...'" 
+                                    class="text-sm text-gray-600 mb-4 line-clamp-3"
+                                ></p>
+                                <button 
+                                    @click="addToReadingList(book)"
+                                    class="w-full inline-flex justify-center items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md text-white bg-indigo-600 hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500"
+                                >
+                                    Add to Reading List
+                                </button>
+                            </div>
+                        </div>
+                    </template>
+                </div>
             </div>
         </main>
 
@@ -355,6 +351,13 @@
         <div 
             class="modal-backdrop"
             :class="{ 'show': showLogin || showRegister }"
+            x-show="showLogin || showRegister"
+            x-transition:enter="transition ease-out duration-300"
+            x-transition:enter-start="opacity-0"
+            x-transition:enter-end="opacity-100"
+            x-transition:leave="transition ease-in duration-200"
+            x-transition:leave-start="opacity-100"
+            x-transition:leave-end="opacity-0"
             @click="closeModals()"
         ></div>
 
@@ -362,23 +365,21 @@
         <div 
             class="modal fixed inset-0 flex items-center justify-center"
             :class="{ 'show': showLogin }"
+            x-show="showLogin"
+            x-transition:enter="transition ease-out duration-300"
+            x-transition:enter-start="opacity-0 transform scale-95"
+            x-transition:enter-end="opacity-100 transform scale-100"
+            x-transition:leave="transition ease-in duration-200"
+            x-transition:leave-start="opacity-100 transform scale-100"
+            x-transition:leave-end="opacity-0 transform scale-95"
+            @click.away="closeModals()"
         >
             <div 
-                class="bg-white p-8 rounded-lg shadow-xl max-w-md w-full mx-4"
+                class="bg-white p-8 rounded-lg shadow-lg max-w-md w-full"
                 @click.stop
             >
-                <div class="flex justify-between items-center mb-6">
-                    <h2 class="text-2xl font-bold">Sign In</h2>
-                    <button 
-                        @click="closeModals()" 
-                        type="button"
-                        class="text-gray-400 hover:text-gray-500"
-                    >
-                        <svg class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
-                        </svg>
-                    </button>
-                </div>
+                <h2 class="text-2xl font-bold mb-6">Sign In</h2>
+                <p class="text-gray-600 mb-4">Don't have an account? <button type="button" @click="switchToRegister()" class="text-orange-600 hover:text-orange-700 font-semibold">Register here</button></p>
                 <form @submit.prevent="handleLogin">
                     <div class="mb-4">
                         <label class="block text-gray-700 text-sm font-bold mb-2">Email</label>
@@ -412,15 +413,6 @@
                         </span>
                     </button>
                 </form>
-                <div class="mt-6 text-center">
-                    <p class="text-sm text-gray-600">Don't have an account?</p>
-                    <button 
-                        @click="showLogin = false; showRegister = true"
-                        class="mt-2 w-full inline-flex justify-center items-center px-4 py-2 border border-indigo-600 text-sm font-medium rounded-md text-indigo-600 bg-white hover:bg-indigo-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500"
-                    >
-                        Create Account
-                    </button>
-                </div>
             </div>
         </div>
 
@@ -428,23 +420,21 @@
         <div 
             class="modal fixed inset-0 flex items-center justify-center"
             :class="{ 'show': showRegister }"
+            x-show="showRegister"
+            x-transition:enter="transition ease-out duration-300"
+            x-transition:enter-start="opacity-0 transform scale-95"
+            x-transition:enter-end="opacity-100 transform scale-100"
+            x-transition:leave="transition ease-in duration-200"
+            x-transition:leave-start="opacity-100 transform scale-100"
+            x-transition:leave-end="opacity-0 transform scale-95"
+            @click.away="closeModals()"
         >
             <div 
-                class="bg-white p-8 rounded-lg shadow-xl max-w-md w-full mx-4"
+                class="bg-white p-8 rounded-lg shadow-lg max-w-md w-full"
                 @click.stop
             >
-                <div class="flex justify-between items-center mb-6">
-                    <h2 class="text-2xl font-bold">Create Account</h2>
-                    <button 
-                        @click="closeModals()" 
-                        type="button"
-                        class="text-gray-400 hover:text-gray-500"
-                    >
-                        <svg class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
-                        </svg>
-                    </button>
-                </div>
+                <h2 class="text-2xl font-bold mb-6">Create Account</h2>
+                <p class="text-gray-600 mb-4">Already have an account? <button type="button" @click="switchToLogin()" class="text-orange-600 hover:text-orange-700 font-semibold">Sign in here</button></p>
                 <form @submit.prevent="handleRegister">
                     <div class="mb-4">
                         <label class="block text-gray-700 text-sm font-bold mb-2">Name</label>
@@ -488,15 +478,6 @@
                         </span>
                     </button>
                 </form>
-                <div class="mt-6 text-center">
-                    <p class="text-sm text-gray-600">Already have an account?</p>
-                    <button 
-                        @click="showRegister = false; showLogin = true"
-                        class="mt-2 w-full inline-flex justify-center items-center px-4 py-2 border border-indigo-600 text-sm font-medium rounded-md text-indigo-600 bg-white hover:bg-indigo-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500"
-                    >
-                        Sign In
-                    </button>
-                </div>
             </div>
         </div>
     </div>
@@ -545,5 +526,133 @@
     >
         <p x-text="notification.message"></p>
     </div>
+    <script>
+    async function fetchWithAuth(url, options = {}) {
+        const token = localStorage.getItem('token');
+        if (!token) {
+            throw new Error('No authentication token found');
+        }
+
+        const headers = {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${token}`,
+            ...options.headers
+        };
+
+        const response = await fetch(url, {
+            ...options,
+            headers
+        });
+
+        if (!response.ok) {
+            const error = await response.json();
+            throw new Error(error.error || 'Request failed');
+        }
+
+        return response.json();
+    }
+
+    async function addBook(bookData) {
+        return fetchWithAuth('/api/books/add', {
+            method: 'POST',
+            body: JSON.stringify(bookData)
+        });
+    }
+
+    async function getUserBooks(status = '') {
+        const url = status ? `/api/books?status=${status}` : '/api/books';
+        return fetchWithAuth(url);
+    }
+
+    async function updateBookStatus(bookId, status) {
+        return fetchWithAuth('/api/books/status', {
+            method: 'PUT',
+            body: JSON.stringify({ book_id: bookId, status })
+        });
+    }
+
+    // Add search function
+    async function searchBooks() {
+        const searchQuery = document.querySelector('input[x-model="searchQuery"]').value;
+        if (!searchQuery) return;
+
+        try {
+            const response = await fetch(`/api/books/search?q=${encodeURIComponent(searchQuery)}`);
+            if (!response.ok) {
+                throw new Error('Search failed');
+            }
+            const data = await response.json();
+            window.dispatchEvent(new CustomEvent('alpine:update:books', { detail: data }));
+        } catch (error) {
+            console.error('Search error:', error);
+            window.dispatchEvent(new CustomEvent('alpine:update:error', { 
+                detail: error.message || 'Failed to search books' 
+            }));
+        }
+    }
+
+    // Add to Alpine.js data
+    document.addEventListener('alpine:init', () => {
+        Alpine.data('searchData', () => ({
+            books: { items: [] },
+            searchQuery: '',
+            isLoading: false,
+            error: null,
+            
+            async searchBooks() {
+                if (!this.searchQuery) return;
+                
+                this.isLoading = true;
+                this.error = null;
+                
+                try {
+                    const response = await fetch(`/api/books/search?q=${encodeURIComponent(this.searchQuery)}`);
+                    if (!response.ok) {
+                        throw new Error('Search failed');
+                    }
+                    const data = await response.json();
+                    this.books = data;
+                } catch (error) {
+                    console.error('Search error:', error);
+                    this.error = error.message || 'Failed to search books';
+                } finally {
+                    this.isLoading = false;
+                }
+            },
+
+            async addToReadingList(book) {
+                if (!localStorage.getItem('token')) {
+                    this.showNotification('Please sign in to add books to your reading list', 'error');
+                    return;
+                }
+
+                try {
+                    const bookData = {
+                        google_book_id: book.id,
+                        title: book.volumeInfo.title,
+                        authors: book.volumeInfo.authors || [],
+                        description: book.volumeInfo.description || '',
+                        categories: book.volumeInfo.categories || [],
+                        image_url: book.volumeInfo.imageLinks?.thumbnail || '',
+                        status: 'TO_READ'
+                    };
+
+                    await addBook(bookData);
+                    this.showNotification('Book added to your reading list!', 'success');
+                } catch (error) {
+                    console.error('Add book error:', error);
+                    this.showNotification(error.message || 'Failed to add book to reading list', 'error');
+                }
+            },
+
+            showNotification(message, type = 'success') {
+                const event = new CustomEvent('show-notification', {
+                    detail: { message, type }
+                });
+                window.dispatchEvent(event);
+            }
+        }));
+    });
+    </script>
 </body>
 </html> 

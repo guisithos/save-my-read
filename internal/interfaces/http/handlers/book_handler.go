@@ -8,6 +8,7 @@ import (
 	"github.com/guisithos/save-my-read/internal/application"
 	"github.com/guisithos/save-my-read/internal/domain/book"
 	"github.com/guisithos/save-my-read/internal/infrastructure/googlebooks"
+	"github.com/guisithos/save-my-read/internal/interfaces/http/middleware"
 )
 
 // BookHandler handles HTTP requests for book operations
@@ -49,22 +50,28 @@ func (h *BookHandler) SearchBooks(w http.ResponseWriter, r *http.Request) {
 	respondJSON(w, http.StatusOK, books)
 }
 
-// AddToList handles adding a book to user's list
-func (h *BookHandler) AddToList(w http.ResponseWriter, r *http.Request) {
+// AddBook handles adding a book to user's list
+func (h *BookHandler) AddBook(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodPost {
 		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
 		return
 	}
 
+	// Get user ID from context
+	userID, ok := r.Context().Value(middleware.UserIDKey).(string)
+	if !ok {
+		http.Error(w, "Unauthorized", http.StatusUnauthorized)
+		return
+	}
+
 	var req struct {
-		UserID      string      `json:"user_id"`
-		GoogleID    string      `json:"google_id"`
-		Title       string      `json:"title"`
-		Authors     []string    `json:"authors"`
-		Description string      `json:"description"`
-		Categories  []string    `json:"categories"`
-		ImageURL    string      `json:"image_url"`
-		Status      book.Status `json:"status"`
+		GoogleBookID string   `json:"google_book_id"`
+		Title        string   `json:"title"`
+		Authors      []string `json:"authors"`
+		Description  string   `json:"description"`
+		Categories   []string `json:"categories"`
+		ImageURL     string   `json:"image_url"`
+		Status       string   `json:"status"`
 	}
 
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
@@ -72,34 +79,46 @@ func (h *BookHandler) AddToList(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	status := book.Status(req.Status)
+	if !status.IsValid() {
+		http.Error(w, "Invalid book status", http.StatusBadRequest)
+		return
+	}
+
 	newBook, err := h.bookService.AddBookToList(
-		req.UserID,
-		req.GoogleID,
+		userID,
+		req.GoogleBookID,
 		req.Title,
 		req.Authors,
 		req.Description,
 		req.Categories,
 		req.ImageURL,
-		req.Status,
+		status,
 	)
+
 	if err != nil {
-		http.Error(w, err.Error(), http.StatusBadRequest)
+		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
 
-	respondJSON(w, http.StatusCreated, newBook)
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(map[string]interface{}{
+		"success": true,
+		"data":    newBook,
+	})
 }
 
-// GetUserBooks handles retrieving user's books
-func (h *BookHandler) GetUserBooks(w http.ResponseWriter, r *http.Request) {
+// GetBooks handles retrieving user's books
+func (h *BookHandler) GetBooks(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodGet {
 		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
 		return
 	}
 
-	userID := r.URL.Query().Get("user_id")
-	if userID == "" {
-		http.Error(w, "user_id is required", http.StatusBadRequest)
+	// Get user ID from context
+	userID, ok := r.Context().Value(middleware.UserIDKey).(string)
+	if !ok {
+		http.Error(w, "Unauthorized", http.StatusUnauthorized)
 		return
 	}
 
@@ -108,7 +127,12 @@ func (h *BookHandler) GetUserBooks(w http.ResponseWriter, r *http.Request) {
 	var err error
 
 	if status != "" {
-		books, err = h.bookService.GetUserBooksByStatus(userID, book.Status(status))
+		bookStatus := book.Status(status)
+		if !bookStatus.IsValid() {
+			http.Error(w, "Invalid status parameter", http.StatusBadRequest)
+			return
+		}
+		books, err = h.bookService.GetUserBooksByStatus(userID, bookStatus)
 	} else {
 		books, err = h.bookService.GetUserBooks(userID)
 	}
@@ -118,7 +142,11 @@ func (h *BookHandler) GetUserBooks(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	respondJSON(w, http.StatusOK, books)
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(map[string]interface{}{
+		"success": true,
+		"data":    books,
+	})
 }
 
 // UpdateBookStatus handles updating a book's status
@@ -128,9 +156,16 @@ func (h *BookHandler) UpdateBookStatus(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// Get user ID from context (for future authorization checks)
+	_, ok := r.Context().Value(middleware.UserIDKey).(string)
+	if !ok {
+		http.Error(w, "Unauthorized", http.StatusUnauthorized)
+		return
+	}
+
 	var req struct {
-		BookID string      `json:"book_id"`
-		Status book.Status `json:"status"`
+		BookID string `json:"book_id"`
+		Status string `json:"status"`
 	}
 
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
@@ -138,12 +173,21 @@ func (h *BookHandler) UpdateBookStatus(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if err := h.bookService.UpdateBookStatus(req.BookID, req.Status); err != nil {
-		http.Error(w, err.Error(), http.StatusBadRequest)
+	status := book.Status(req.Status)
+	if !status.IsValid() {
+		http.Error(w, "Invalid book status", http.StatusBadRequest)
 		return
 	}
 
-	w.WriteHeader(http.StatusOK)
+	if err := h.bookService.UpdateBookStatus(req.BookID, status); err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(map[string]interface{}{
+		"success": true,
+	})
 }
 
 func respondJSON(w http.ResponseWriter, status int, data interface{}) {
