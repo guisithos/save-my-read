@@ -52,6 +52,6 @@ func main() {
 	authHandler := handlers.NewAuthHandler(authService)
 
 	// Initialize and start server
-	srv := server.NewServer(bookHandler, authHandler, "8080", os.Getenv("JWT_SECRET"))
+	srv := server.NewServer(authHandler, bookHandler, jwtService, "8080")
 	log.Fatal(srv.Start())
 }

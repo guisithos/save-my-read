@@ -4,74 +4,60 @@ import (
 	"log"
 	"net/http"
 
+	"github.com/guisithos/save-my-read/internal/domain/auth"
 	"github.com/guisithos/save-my-read/internal/interfaces/http/handlers"
 	"github.com/guisithos/save-my-read/internal/interfaces/http/middleware"
 )
 
 // Server represents the HTTP server
 type Server struct {
-	bookHandler *handlers.BookHandler
-	authHandler *handlers.AuthHandler
-	viewHandler *handlers.ViewHandler
-	port        string
-	jwtKey      []byte
+	authHandler  *handlers.AuthHandler
+	bookHandler  *handlers.BookHandler
+	tokenService auth.TokenService
+	port         string
 }
 
 // NewServer creates a new HTTP server
-func NewServer(bookHandler *handlers.BookHandler, authHandler *handlers.AuthHandler, port string, jwtKey string) *Server {
-	viewHandler, err := handlers.NewViewHandler()
-	if err != nil {
-		log.Fatalf("Failed to create view handler: %v", err)
-	}
-
+func NewServer(authHandler *handlers.AuthHandler, bookHandler *handlers.BookHandler, tokenService auth.TokenService, port string) *Server {
 	return &Server{
-		bookHandler: bookHandler,
-		authHandler: authHandler,
-		viewHandler: viewHandler,
-		port:        port,
-		jwtKey:      []byte(jwtKey),
+		authHandler:  authHandler,
+		bookHandler:  bookHandler,
+		tokenService: tokenService,
+		port:         port,
 	}
+}
+
+// SetupRoutes sets up the routes for the HTTP server
+func (s *Server) SetupRoutes() http.Handler {
+	mux := http.NewServeMux()
+
+	// Public routes (no auth required)
+	mux.HandleFunc("/api/auth/register", s.authHandler.Register)
+	mux.HandleFunc("/api/auth/login", s.authHandler.Login)
+
+	// Protected routes (auth required)
+	protectedMux := http.NewServeMux()
+	protectedMux.HandleFunc("/api/books", s.bookHandler.GetBooks)
+	protectedMux.HandleFunc("/api/books/add", s.bookHandler.AddBook)
+	protectedMux.HandleFunc("/api/books/status", s.bookHandler.UpdateBookStatus)
+
+	// Apply auth middleware to protected routes
+	authMiddleware := middleware.NewAuthMiddleware(s.tokenService)
+	mux.Handle("/api/books/", authMiddleware(protectedMux))
+
+	// Serve static files
+	fs := http.FileServer(http.Dir("web"))
+	mux.Handle("/", fs)
+
+	return mux
 }
 
 // Start starts the HTTP server
 func (s *Server) Start() error {
-	mux := http.NewServeMux()
-
-	// Static files
-	fs := http.FileServer(http.Dir("web/static"))
-	mux.Handle("/static/", http.StripPrefix("/static/", fs))
-
-	// Create a base handler with CORS middleware
-	baseHandler := addMiddleware(mux)
-
-	// View routes
-	mux.HandleFunc("/", s.viewHandler.Home)
-
-	// Auth routes (no auth middleware)
-	mux.HandleFunc("/api/auth/register", addMiddleware(http.HandlerFunc(s.authHandler.Register)).ServeHTTP)
-	mux.HandleFunc("/api/auth/login", addMiddleware(http.HandlerFunc(s.authHandler.Login)).ServeHTTP)
-
-	// Protected API routes (with auth middleware)
-	protectedMux := http.NewServeMux()
-	protectedMux.HandleFunc("/api/books/search", s.bookHandler.SearchBooks)
-	protectedMux.HandleFunc("/api/books/add", s.bookHandler.AddToList)
-	protectedMux.HandleFunc("/api/books/user", s.bookHandler.GetUserBooks)
-	protectedMux.HandleFunc("/api/books/status", s.bookHandler.UpdateBookStatus)
-
-	// Add auth middleware only to protected routes
-	protectedHandler := middleware.AuthMiddleware(s.jwtKey)(addMiddleware(protectedMux))
-
-	// Combine handlers
-	finalHandler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		if r.URL.Path == "/" || r.URL.Path == "/api/auth/register" || r.URL.Path == "/api/auth/login" {
-			baseHandler.ServeHTTP(w, r)
-			return
-		}
-		protectedHandler.ServeHTTP(w, r)
-	})
+	mux := s.SetupRoutes()
 
 	log.Printf("Server starting on port %s", s.port)
-	return http.ListenAndServe(":"+s.port, finalHandler)
+	return http.ListenAndServe(":"+s.port, mux)
 }
 
 func addMiddleware(next http.Handler) http.Handler {

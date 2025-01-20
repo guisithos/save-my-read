@@ -242,13 +242,26 @@
         <header class="bg-white shadow-sm fixed w-full top-0 z-10">
             <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4 flex justify-between items-center">
                 <div class="text-xl font-bold text-gray-900">ReadQuest</div>
-                <div>
-                    <button 
-                        @click="showLogin = true"
-                        class="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md text-white bg-indigo-600 hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500"
-                    >
-                        Sign In
-                    </button>
+                <div x-data="{ user: JSON.parse(localStorage.getItem('user') || 'null') }">
+                    <template x-if="!user">
+                        <button 
+                            @click="showLogin = true"
+                            class="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md text-white bg-indigo-600 hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500"
+                        >
+                            Sign In
+                        </button>
+                    </template>
+                    <template x-if="user">
+                        <div class="flex items-center space-x-4">
+                            <span class="text-gray-700" x-text="'Welcome, ' + user.name"></span>
+                            <button 
+                                @click="localStorage.removeItem('token'); localStorage.removeItem('user'); window.location.reload();"
+                                class="text-sm text-gray-600 hover:text-gray-900"
+                            >
+                                Sign Out
+                            </button>
+                        </div>
+                    </template>
                 </div>
             </div>
         </header>
@@ -512,5 +525,50 @@
     >
         <p x-text="notification.message"></p>
     </div>
+    <script>
+    async function fetchWithAuth(url, options = {}) {
+        const token = localStorage.getItem('token');
+        if (!token) {
+            throw new Error('No authentication token found');
+        }
+
+        const headers = {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${token}`,
+            ...options.headers
+        };
+
+        const response = await fetch(url, {
+            ...options,
+            headers
+        });
+
+        if (!response.ok) {
+            const error = await response.json();
+            throw new Error(error.error || 'Request failed');
+        }
+
+        return response.json();
+    }
+
+    async function addBook(bookData) {
+        return fetchWithAuth('/api/books/add', {
+            method: 'POST',
+            body: JSON.stringify(bookData)
+        });
+    }
+
+    async function getUserBooks(status = '') {
+        const url = status ? `/api/books?status=${status}` : '/api/books';
+        return fetchWithAuth(url);
+    }
+
+    async function updateBookStatus(bookId, status) {
+        return fetchWithAuth('/api/books/status', {
+            method: 'PUT',
+            body: JSON.stringify({ book_id: bookId, status })
+        });
+    }
+    </script>
 </body>
 </html> 
