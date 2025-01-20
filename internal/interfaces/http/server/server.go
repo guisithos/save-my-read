@@ -34,6 +34,7 @@ func (s *Server) SetupRoutes() http.Handler {
 	// Public routes (no auth required)
 	mux.HandleFunc("/api/auth/register", s.authHandler.Register)
 	mux.HandleFunc("/api/auth/login", s.authHandler.Login)
+	mux.HandleFunc("/api/books/search", s.bookHandler.SearchBooks)
 
 	// Protected routes (auth required)
 	protectedMux := http.NewServeMux()
