@@ -1,34 +1,30 @@
-function createAppStore() {
+// Make sure createAppStore is available globally
+window.createAppStore = function() {
     return {
         searchQuery: '',
         showSearch: false,
-        user: JSON.parse(localStorage.getItem('user') || 'null'),
+        user: null,
         isAuthenticated: false,
 
         init() {
-            // Initialize auth state
+            console.log('Store init called');
+            this.user = JSON.parse(localStorage.getItem('user') || 'null');
             this.isAuthenticated = !!localStorage.getItem('token');
-            
-            // Watch for user changes
-            this.$watch('user', (value) => {
-                if (value) {
-                    localStorage.setItem('user', JSON.stringify(value));
-                    this.isAuthenticated = true;
-                } else {
-                    localStorage.removeItem('user');
-                    this.isAuthenticated = false;
-                }
-            });
         },
 
         toggleSearch(value) {
+            console.log('toggleSearch called with:', value);
             this.showSearch = value;
             if (value) {
-                this.$dispatch('open-search', { query: this.searchQuery });
+                console.log('Dispatching open-search event');
+                window.dispatchEvent(new CustomEvent('open-search', { 
+                    detail: { query: this.searchQuery }
+                }));
             }
         },
 
         setSearchQuery(query) {
+            console.log('setSearchQuery:', query);
             this.searchQuery = query;
         },
 
@@ -38,4 +34,4 @@ function createAppStore() {
             window.location.reload();
         }
     };
-} 
+}; 

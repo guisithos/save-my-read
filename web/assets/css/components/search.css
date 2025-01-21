@@ -1,71 +1,92 @@
-.search-overlay {
-    @apply fixed inset-0 bg-black bg-opacity-50 z-50 
-           flex items-center justify-center p-4;
-}
+@layer components {
+    .search-overlay {
+        @apply fixed inset-0 bg-black bg-opacity-50 z-50 
+               flex items-center justify-center p-4;
+    }
 
-.search-modal {
-    @apply w-full max-w-3xl bg-white rounded-xl shadow-xl 
-           overflow-hidden max-h-[90vh] flex flex-col;
-}
+    .search-modal {
+        @apply w-full max-w-3xl bg-white rounded-xl shadow-xl 
+               overflow-hidden max-h-[90vh] flex flex-col;
+        min-height: 300px;
+    }
 
-.search-header {
-    @apply p-4 border-b flex items-center space-x-4;
-}
+    .search-header {
+        @apply p-4 border-b flex items-center space-x-4;
+    }
 
-.search-input-wrapper {
-    @apply flex-1 relative;
-}
+    .search-input-wrapper {
+        @apply flex-1 relative;
+    }
 
-.search-input {
-    @apply w-full pl-10 pr-4 py-2 rounded-lg border-2 border-gray-200 
-           focus:border-primary-500 focus:ring-2 focus:ring-primary-200 
-           transition-all duration-200;
-}
+    .search-input {
+        @apply w-full pl-10 pr-4 py-2 rounded-lg border-2 border-gray-200 
+        focus:border-primary-500 focus:ring-2 focus:ring-primary-200 
+        transition-all duration-200;
+    }
 
-.search-input-wrapper i {
-    @apply absolute left-3 top-1/2 -translate-y-1/2 text-gray-400;
-}
+    .search-input-wrapper i {
+        @apply absolute left-3 top-1/2 -translate-y-1/2 text-gray-400;
+    }
 
-.clear-btn, .close-btn {
-    @apply p-2 text-gray-400 hover:text-gray-600 
-           rounded-full hover:bg-gray-100 transition-colors duration-200;
-}
+    .clear-btn, .close-btn {
+        @apply p-2 text-gray-400 hover:text-gray-600 
+        rounded-full hover:bg-gray-100 transition-colors duration-200;
+    }
 
-.search-results {
-    @apply overflow-y-auto flex-1 p-4;
-}
+    .search-results {
+        @apply overflow-y-auto flex-1 p-4;
+    }
 
-.search-result-item {
-    @apply flex items-center space-x-4 p-4 hover:bg-gray-50 
-           rounded-lg transition-colors duration-200;
-}
+    .search-result-item {
+        @apply flex items-center space-x-4 p-4 hover:bg-gray-50 
+        rounded-lg transition-colors duration-200;
+    }
 
-.book-thumbnail {
-    @apply w-16 h-24 object-cover rounded shadow;
-}
+    .book-thumbnail {
+        @apply w-16 h-24 object-cover rounded shadow;
+    }
 
-.book-details {
-    @apply flex-1;
-}
+    .book-details {
+        @apply flex-1;
+    }
 
-.book-details h4 {
-    @apply font-semibold text-gray-900;
-}
+    .book-details h4 {
+        @apply font-semibold text-gray-900;
+    }
 
-.authors {
-    @apply text-sm text-gray-600 mt-1;
-}
+    .authors {
+        @apply text-sm text-gray-600 mt-1;
+    }
 
-.categories {
-    @apply text-xs text-gray-500 mt-1;
-}
+    .categories {
+        @apply text-xs text-gray-500 mt-1;
+    }
 
-.add-btn {
-    @apply px-4 py-2 rounded-lg bg-primary-500 text-white 
-           hover:bg-primary-600 disabled:opacity-50 
-           disabled:cursor-not-allowed transition-all duration-200;
-}
+    .add-btn {
+        @apply px-4 py-2 rounded-lg bg-primary-500 text-white 
+        hover:bg-primary-600 disabled:opacity-50 
+        disabled:cursor-not-allowed transition-all duration-200;
+    }
 
-.add-btn.added {
-    @apply bg-green-500 hover:bg-green-600;
+    .add-btn.added {
+        @apply bg-green-500 hover:bg-green-600;
+    }
+
+    .search-loading {
+        @apply flex flex-col items-center justify-center p-8;
+    }
+
+    .loading-spinner {
+        border-top-color: transparent;
+        animation: spin 1s linear infinite;
+    }
+
+    @keyframes spin {
+        from { transform: rotate(0deg); }
+        to { transform: rotate(360deg); }
+    }
+
+    .search-empty, .search-initial {
+        @apply flex flex-col items-center justify-center p-8 text-gray-500;
+    }
 } 

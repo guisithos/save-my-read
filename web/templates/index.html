@@ -5,18 +5,57 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>ReadQuest</title>
     
-    <!-- Alpine.js must be loaded first -->
-    <script src="//unpkg.com/alpinejs@3.x.x/dist/cdn.min.js" defer></script>
+    <!-- Initialize store before Alpine.js -->
+    <script>
+        // Create global store object
+        window.appStore = {
+            searchQuery: '',
+            showSearch: false,
+            user: null,
+            isAuthenticated: false,
+
+            init() {
+                console.log('Store init called');
+                this.user = JSON.parse(localStorage.getItem('user') || 'null');
+                this.isAuthenticated = !!localStorage.getItem('token');
+            },
+
+            toggleSearch(value) {
+                console.log('toggleSearch called with:', value);
+                this.showSearch = value;
+                if (value) {
+                    console.log('Dispatching open-search event');
+                    window.dispatchEvent(new CustomEvent('open-search', { 
+                        detail: { query: this.searchQuery }
+                    }));
+                }
+            },
+
+            setSearchQuery(query) {
+                console.log('setSearchQuery:', query);
+                this.searchQuery = query;
+            }
+        };
+
+        // Initialize Alpine store when ready
+        document.addEventListener('alpine:init', () => {
+            console.log('Alpine.js initialized, registering store');
+            Alpine.store('app', window.appStore);
+            window.appStore.init();
+        });
+    </script>
+
+    <!-- Load Alpine.js -->
+    <script defer src="//unpkg.com/alpinejs@3.x.x/dist/cdn.min.js"></script>
     
-    <!-- Then our store and components -->
-    <script src="/assets/js/store/index.js"></script>
+    <!-- Then load other components -->
     <script src="/assets/js/services/api.js"></script>
     <script src="/assets/js/components/auth.js"></script>
     <script src="/assets/js/components/book-list.js"></script>
     <script src="/assets/js/components/search.js"></script>
     
     <!-- Other Scripts -->
-    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="/assets/css/tailwind.css" rel="stylesheet">
 
     <!-- Styles -->
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
@@ -156,16 +195,36 @@
 
                     <!-- Search Bar (Trigger) -->
                     <div class="max-w-2xl mx-auto mt-8">
-                        <div class="relative rounded-lg shadow-sm">
+                        <div class="relative rounded-lg shadow-sm" 
+                             x-data="{ 
+                                localQuery: '',
+                                triggerSearch() {
+                                    console.log('Trigger search called');
+                                    // Wait for store to be available
+                                    const checkAndTrigger = () => {
+                                        const store = Alpine.store('app');
+                                        if (store) {
+                                            console.log('Store found, triggering search');
+                                            store.setSearchQuery(this.localQuery);
+                                            store.toggleSearch(true);
+                                        } else {
+                                            console.log('Store not found, retrying...');
+                                            setTimeout(checkAndTrigger, 100);
+                                        }
+                                    };
+                                    checkAndTrigger();
+                                }
+                             }"
+                        >
                             <input
                                 type="text"
-                                x-model="searchQuery"
-                                @keyup.enter="$store.app?.toggleSearch(true)"
+                                x-model="localQuery"
+                                @keyup.enter="triggerSearch()"
                                 class="block w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-indigo-500 focus:border-indigo-500"
                                 placeholder="Search for books..."
                             >
                             <button 
-                                @click="$store.app?.toggleSearch(true)"
+                                @click="triggerSearch()"
                                 class="absolute inset-y-0 right-0 px-6 flex items-center bg-indigo-600 text-white rounded-r-lg hover:bg-indigo-700 transition-colors"
                             >
                                 <i class="fas fa-search mr-2"></i>
@@ -187,16 +246,31 @@
 
         <!-- Notifications -->
         <div 
-            x-data="{ notification: { show: false, message: '', type: '' } }"
-            x-on:notification.window="
-                notification = $event.detail;
+            x-data="{ 
+                notification: { 
+                    show: false, 
+                    message: '', 
+                    type: '' 
+                } 
+            }"
+            @notification.window="
+                notification = { 
+                    show: true, 
+                    message: $event.detail.message, 
+                    type: $event.detail.type 
+                };
                 setTimeout(() => notification.show = false, 3000)
             "
             class="fixed bottom-4 right-4 z-50"
         >
             <div
                 x-show="notification.show"
-                x-transition
+                x-transition:enter="transition ease-out duration-300"
+                x-transition:enter-start="opacity-0 transform translate-y-2"
+                x-transition:enter-end="opacity-100 transform translate-y-0"
+                x-transition:leave="transition ease-in duration-200"
+                x-transition:leave-start="opacity-100 transform translate-y-0"
+                x-transition:leave-end="opacity-0 transform translate-y-2"
                 :class="{
                     'bg-green-500': notification.type === 'success',
                     'bg-red-500': notification.type === 'error'
@@ -210,17 +284,21 @@
 
     <!-- Debug Panel -->
     <div id="debug-panel" 
-        x-data="{ show: false }" 
+        x-data="{ 
+            show: false,
+            debugInfo() {
+                return {
+                    searchQuery: Alpine.store('app')?.searchQuery,
+                    showSearch: Alpine.store('app')?.showSearch
+                }
+            }
+        }" 
         @keydown.ctrl.d.window="show = !show" 
         x-show="show"
     >
         <div class="max-w-7xl mx-auto">
             <h3>Debug Information:</h3>
-            <pre x-text="JSON.stringify({
-                searchQuery: $store.app?.searchQuery,
-                showSearch: $store.app?.showSearch,
-                notification
-            }, null, 2)"></pre>
+            <pre x-text="JSON.stringify(debugInfo(), null, 2)"></pre>
         </div>
     </div>
 
@@ -252,6 +330,31 @@
         
         window.addEventListener('error', (event) => {
             console.error('Global error:', event.error);
+        });
+
+        // Monitor search-related events
+        window.addEventListener('open-search', (event) => {
+            console.log('open-search event received:', event.detail);
+        });
+
+        // Monitor store changes
+        if (window.Alpine) {
+            window._debugStore = () => console.log('Store state:', Alpine.store('app'));
+        }
+    </script>
+
+    <!-- At the bottom of body -->
+    <script>
+        // Debug helper
+        function checkStore() {
+            const store = Alpine.store('app');
+            console.log('Current store state:', store);
+            return store;
+        }
+
+        // Check store after everything is loaded
+        window.addEventListener('load', () => {
+            setTimeout(checkStore, 1000); // Check after 1 second
         });
     </script>
 </body>

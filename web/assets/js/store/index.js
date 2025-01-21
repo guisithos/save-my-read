@@ -2,47 +2,30 @@
 document.addEventListener('alpine:init', () => {
     console.log('Initializing Alpine store');
     
-    Alpine.store('app', {
-        searchQuery: '',
-        showSearch: false,
-        user: null,
-        isAuthenticated: false,
+    if (typeof createAppStore !== 'function') {
+        console.error('createAppStore is not defined! Check if app-store.js is loaded.');
+        return;
+    }
 
-        init() {
-            console.log('Store init called');
-            this.user = JSON.parse(localStorage.getItem('user') || 'null');
-            this.isAuthenticated = !!localStorage.getItem('token');
-        },
+    // Create and initialize store
+    const store = createAppStore();
+    Alpine.store('app', store);
+    
+    // Initialize store after creation
+    if (typeof store.init === 'function') {
+        store.init();
+    }
 
-        toggleSearch(value) {
-            console.log('toggleSearch called with:', value);
-            this.showSearch = value;
-            if (value) {
-                window.dispatchEvent(new CustomEvent('open-search', { 
-                    detail: { query: this.searchQuery }
-                }));
-            }
-        },
-
-        setSearchQuery(query) {
-            console.log('setSearchQuery:', query);
-            this.searchQuery = query;
-        },
-
-        logout() {
-            localStorage.removeItem('token');
-            this.user = null;
-            window.location.reload();
-        }
-    });
-
-    // Initialize store
-    Alpine.store('app').init();
+    console.log('Store created and initialized:', Alpine.store('app'));
 });
 
 // Verify store initialization
 document.addEventListener('alpine:initialized', () => {
-    console.log('Alpine initialized, store status:', Alpine.store('app'));
+    const store = Alpine.store('app');
+    console.log('Alpine initialized, verifying store:', store);
+    if (!store) {
+        console.error('Store not properly initialized!');
+    }
 });
 
 // Add more debugging
