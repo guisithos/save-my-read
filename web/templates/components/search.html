@@ -1,8 +1,8 @@
 <div 
     x-data="search()" 
-    x-show="isOpen"
+    x-show="$store.app?.showSearch"
+    @keydown.escape.window="$store.app?.toggleSearch(false)"
     class="search-overlay"
-    @keydown.escape="close"
 >
     <div class="search-modal">
         <div class="search-header">
@@ -24,53 +24,46 @@
                     <i class="fas fa-times"></i>
                 </button>
             </div>
-            <button @click="close" class="close-btn">
+            <button @click="$store.app?.toggleSearch(false)" class="close-btn">
                 <i class="fas fa-times"></i>
             </button>
         </div>
 
+        <!-- Search Results -->
         <div class="search-results" x-show="!isLoading && results.length > 0">
             <template x-for="book in results" :key="book.id">
                 <div class="search-result-item">
                     <img :src="book.imageURL" :alt="book.title" class="book-thumbnail">
                     <div class="book-details">
                         <h4 x-text="book.title"></h4>
-                        <p class="authors" x-text="book.authors.join(', ')"></p>
-                        <p class="categories" x-text="book.categories.join(', ')"></p>
+                        <p class="authors" x-text="book.authors?.join(', ')"></p>
+                        <p class="categories" x-text="book.categories?.join(', ')"></p>
                     </div>
                     <button 
                         @click="addBook(book)"
-                        :disabled="isBookAdded(book.id)"
+                        :disabled="addedBooks.has(book.id)"
                         class="add-btn"
-                        :class="{'added': isBookAdded(book.id)}"
+                        :class="{'added': addedBooks.has(book.id)}"
                     >
-                        <i :class="isBookAdded(book.id) ? 'fas fa-check' : 'fas fa-plus'"></i>
-                        <span x-text="isBookAdded(book.id) ? 'Added' : 'Add'"></span>
+                        <i :class="addedBooks.has(book.id) ? 'fas fa-check' : 'fas fa-plus'"></i>
+                        <span x-text="addedBooks.has(book.id) ? 'Added' : 'Add'"></span>
                     </button>
                 </div>
             </template>
         </div>
 
-        <!-- Loading State -->
+        <!-- States -->
         <div x-show="isLoading" class="search-loading">
             <div class="loading-spinner"></div>
             <p>Searching books...</p>
         </div>
 
-        <!-- Empty State -->
-        <div 
-            x-show="!isLoading && query && results.length === 0" 
-            class="search-empty"
-        >
+        <div x-show="!isLoading && query && results.length === 0" class="search-empty">
             <i class="fas fa-search text-4xl mb-4"></i>
             <p>No books found for "<span x-text="query"></span>"</p>
         </div>
 
-        <!-- Initial State -->
-        <div 
-            x-show="!isLoading && !query" 
-            class="search-initial"
-        >
+        <div x-show="!isLoading && !query" class="search-initial">
             <i class="fas fa-search text-4xl mb-4"></i>
             <p>Start typing to search for books</p>
         </div>

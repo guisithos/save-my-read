@@ -5,13 +5,18 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>ReadQuest</title>
     
-    <!-- Scripts -->
-    <script src="//unpkg.com/alpinejs" defer></script>
-    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- Alpine.js must be loaded first -->
+    <script src="//unpkg.com/alpinejs@3.x.x/dist/cdn.min.js" defer></script>
+    
+    <!-- Then our store and components -->
+    <script src="/assets/js/store/index.js"></script>
     <script src="/assets/js/services/api.js"></script>
     <script src="/assets/js/components/auth.js"></script>
     <script src="/assets/js/components/book-list.js"></script>
     <script src="/assets/js/components/search.js"></script>
+    
+    <!-- Other Scripts -->
+    <script src="https://cdn.tailwindcss.com"></script>
 
     <!-- Styles -->
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
@@ -89,43 +94,98 @@
     </style>
 </head>
 <body class="bg-gray-50">
-    <div x-data="{ showSearch: false }">
+    <div x-data="{
+        searchQuery: '',
+        showSearch: false,
+        notification: null,
+        init() {
+            this.$watch('searchQuery', value => {
+                if (this.$store.app) {
+                    this.$store.app.setSearchQuery(value);
+                }
+            });
+        }
+    }">
         <!-- Navigation -->
-        <nav class="bg-white shadow-sm">
+        <nav class="bg-white shadow-sm fixed w-full top-0 z-10">
             <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
                 <div class="flex justify-between h-16">
+                    <!-- Logo -->
                     <div class="flex items-center">
                         <h1 class="text-2xl font-bold gradient-text">ReadQuest</h1>
                     </div>
+                    
+                    <!-- Auth Section -->
                     <div class="flex items-center space-x-4">
-                        <button 
-                            @click="showSearch = true"
-                            class="btn-primary"
-                        >
-                            <i class="fas fa-search mr-2"></i>
-                            Search Books
-                        </button>
+                        <template x-if="!isAuthenticated">
+                            <button 
+                                @click="$dispatch('open-auth')"
+                                class="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md text-white bg-indigo-600 hover:bg-indigo-700"
+                            >
+                                Sign In
+                            </button>
+                        </template>
+                        
+                        <template x-if="isAuthenticated">
+                            <div class="flex items-center space-x-4">
+                                <span class="text-gray-700" x-text="user?.name || 'User'"></span>
+                                <button 
+                                    @click="logout()"
+                                    class="text-sm text-gray-600 hover:text-gray-900"
+                                >
+                                    Sign Out
+                                </button>
+                            </div>
+                        </template>
                     </div>
                 </div>
             </div>
         </nav>
 
-        <main class="container mx-auto px-4 py-8">
-            <!-- Book List Component -->
-            <template x-if="!showSearch">
-                <div x-data="bookList"></div>
-            </template>
+        <main class="pt-16">
+            <!-- Hero Section -->
+            <div class="text-center py-12 bg-gradient-to-b from-white to-gray-50">
+                <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+                    <h2 class="text-5xl tracking-tight font-extrabold sm:text-6xl md:text-7xl lg:text-8xl">
+                        <span class="text-gray-900">Read</span>
+                        <span class="gradient-text">Quest</span>
+                    </h2>
+                    <p class="mt-3 max-w-md mx-auto text-base text-gray-500 sm:text-lg md:mt-5 md:text-xl md:max-w-3xl">
+                        discover. track. <span class="text-orange-500 font-semibold">conquer</span> your reading list.
+                    </p>
 
-            <!-- Search Component -->
-            <template x-if="showSearch">
-                <div x-data="search"></div>
-            </template>
+                    <!-- Search Bar (Trigger) -->
+                    <div class="max-w-2xl mx-auto mt-8">
+                        <div class="relative rounded-lg shadow-sm">
+                            <input
+                                type="text"
+                                x-model="searchQuery"
+                                @keyup.enter="$store.app?.toggleSearch(true)"
+                                class="block w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-indigo-500 focus:border-indigo-500"
+                                placeholder="Search for books..."
+                            >
+                            <button 
+                                @click="$store.app?.toggleSearch(true)"
+                                class="absolute inset-y-0 right-0 px-6 flex items-center bg-indigo-600 text-white rounded-r-lg hover:bg-indigo-700 transition-colors"
+                            >
+                                <i class="fas fa-search mr-2"></i>
+                                Search
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Main Content -->
+            <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+                <div x-data="bookList"></div>
+            </div>
+
+            <!-- Search Component Include -->
+            {% include 'components/search.html' %}
         </main>
 
-        <!-- Auth Component -->
-        <div x-data="auth"></div>
-
-        <!-- Global Notification Component -->
+        <!-- Notifications -->
         <div 
             x-data="{ notification: { show: false, message: '', type: '' } }"
             x-on:notification.window="
@@ -147,17 +207,23 @@
             </div>
         </div>
     </div>
-    <div id="debug-panel" x-data="{ show: false }" @keydown.ctrl.d.window="show = !show" x-show="show">
+
+    <!-- Debug Panel -->
+    <div id="debug-panel" 
+        x-data="{ show: false }" 
+        @keydown.ctrl.d.window="show = !show" 
+        x-show="show"
+    >
         <div class="max-w-7xl mx-auto">
             <h3>Debug Information:</h3>
             <pre x-text="JSON.stringify({
-                searchQuery,
-                booksCount: books?.items?.length || 0,
-                isLoading,
-                error
+                searchQuery: $store.app?.searchQuery,
+                showSearch: $store.app?.showSearch,
+                notification
             }, null, 2)"></pre>
         </div>
     </div>
+
     <!-- Footer -->
     <footer class="py-4 border-t border-gray-200 mt-auto">
         <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
@@ -177,5 +243,16 @@
             </div>
         </div>
     </footer>
+
+    <!-- Debug Helper -->
+    <script>
+        document.addEventListener('alpine:init', () => {
+            console.log('Alpine initialized');
+        });
+        
+        window.addEventListener('error', (event) => {
+            console.error('Global error:', event.error);
+        });
+    </script>
 </body>
 </html> 
