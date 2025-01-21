@@ -1,0 +1,77 @@
+<div x-data="bookList()" class="book-list-container">
+    <!-- Reading Status Tabs -->
+    <div class="status-tabs">
+        <button 
+            x-for="status in statuses"
+            :key="status.value"
+            @click="currentStatus = status.value"
+            :class="{'active': currentStatus === status.value}"
+            class="status-tab"
+        >
+            <i :class="status.icon"></i>
+            <span x-text="status.label"></span>
+            <span class="count" x-text="getBookCountByStatus(status.value)"></span>
+        </button>
+    </div>
+
+    <!-- Book Grid -->
+    <div class="book-grid" x-show="!isLoading">
+        <template x-for="book in filteredBooks" :key="book.id">
+            <div class="book-card">
+                <div class="book-cover">
+                    <img :src="book.imageURL" :alt="book.title">
+                    <div class="book-actions">
+                        <button @click="openStatusModal(book)" class="action-btn">
+                            <i class="fas fa-edit"></i>
+                        </button>
+                        <button @click="removeBook(book.id)" class="action-btn danger">
+                            <i class="fas fa-trash"></i>
+                        </button>
+                    </div>
+                </div>
+                <div class="book-info">
+                    <h3 class="book-title" x-text="book.title"></h3>
+                    <p class="book-authors" x-text="book.authors.join(', ')"></p>
+                    <div class="book-status" :class="book.status.toLowerCase()">
+                        <span x-text="getStatusLabel(book.status)"></span>
+                    </div>
+                </div>
+            </div>
+        </template>
+    </div>
+
+    <!-- Loading State -->
+    <div x-show="isLoading" class="loading-state">
+        <div class="loading-spinner"></div>
+        <p>Loading your books...</p>
+    </div>
+
+    <!-- Empty State -->
+    <div x-show="!isLoading && filteredBooks.length === 0" class="empty-state">
+        <i class="fas fa-books text-4xl mb-4"></i>
+        <h3>No books found</h3>
+        <p>Start by searching for a book to add to your list</p>
+        <button @click="$dispatch('open-search')" class="btn-primary mt-4">
+            Search Books
+        </button>
+    </div>
+
+    <!-- Status Change Modal -->
+    <div x-show="statusModal.show" class="modal-backdrop" @click="closeStatusModal">
+        <div class="modal-content" @click.stop>
+            <h3>Update Reading Status</h3>
+            <div class="status-options">
+                <button 
+                    x-for="status in statuses"
+                    :key="status.value"
+                    @click="updateBookStatus(statusModal.book.id, status.value)"
+                    :class="{'selected': statusModal.book?.status === status.value}"
+                    class="status-option"
+                >
+                    <i :class="status.icon"></i>
+                    <span x-text="status.label"></span>
+                </button>
+            </div>
+        </div>
+    </div>
+</div> 

@@ -91,20 +91,26 @@ func (h *AuthHandler) Login(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	token, err := h.authService.Login(req.Email, req.Password)
+	// Basic validation
+	if req.Email == "" || req.Password == "" {
+		respondError(w, http.StatusBadRequest, "Email and password are required")
+		return
+	}
+
+	response, err := h.authService.Login(req.Email, req.Password)
 	if err != nil {
 		switch {
 		case errors.Is(err, auth.ErrInvalidCredentials):
-			respondError(w, http.StatusUnauthorized, "Invalid credentials")
+			respondError(w, http.StatusUnauthorized, "Invalid email or password")
 		default:
-			respondError(w, http.StatusInternalServerError, "Failed to login")
+			respondError(w, http.StatusInternalServerError, "Internal server error")
 		}
 		return
 	}
 
 	respondJSON(w, http.StatusOK, Response{
 		Success: true,
-		Data:    token,
+		Data:    response,
 	})
 }
 

@@ -4,9 +4,27 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>ReadQuest</title>
-    <script src="//unpkg.com/alpinejs" defer></script>
+    
+    <!-- Alpine.js must be loaded first -->
+    <script src="//unpkg.com/alpinejs@3.x.x/dist/cdn.min.js" defer></script>
+    
+    <!-- Then our store and components -->
+    <script src="/assets/js/store/index.js"></script>
+    <script src="/assets/js/services/api.js"></script>
+    <script src="/assets/js/components/auth.js"></script>
+    <script src="/assets/js/components/book-list.js"></script>
+    <script src="/assets/js/components/search.js"></script>
+    
+    <!-- Other Scripts -->
     <script src="https://cdn.tailwindcss.com"></script>
+
+    <!-- Styles -->
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
+    <link href="/assets/css/components/auth.css" rel="stylesheet">
+    <link href="/assets/css/components/book-list.css" rel="stylesheet">
+    <link href="/assets/css/components/search.css" rel="stylesheet">
+    
     <style>
         body {
             font-family: 'Inter', sans-serif;
@@ -31,6 +49,9 @@
             0% { background-position: 200% center; }
             100% { background-position: -200% center; }
         }
+        main {
+            flex: 1;
+        }
         #debug-panel {
             position: fixed;
             bottom: 0;
@@ -42,9 +63,6 @@
             font-family: monospace;
             font-size: 12px;
             display: none;
-        }
-        main {
-            flex: 1;
         }
         .modal-backdrop {
             display: none;
@@ -76,422 +94,136 @@
     </style>
 </head>
 <body class="bg-gray-50">
-    <div x-data="{ 
-        books: [],
+    <div x-data="{
         searchQuery: '',
-        isLoading: false,
-        error: null,
-        showLogin: false,
-        showRegister: false,
-        notification: { message: '', type: '', show: false },
-        loginForm: {
-            email: '',
-            password: '',
-            error: null,
-            isLoading: false
-        },
-        registerForm: {
-            email: '',
-            password: '',
-            name: '',
-            error: null,
-            isLoading: false
-        },
-        switchToRegister() {
-            this.showLogin = false;
-            setTimeout(() => {
-                this.showRegister = true;
-            }, 100);
-        },
-        switchToLogin() {
-            this.showRegister = false;
-            setTimeout(() => {
-                this.showLogin = true;
-            }, 100);
-        },
-        closeModals() {
-            this.showLogin = false;
-            this.showRegister = false;
-            this.resetForms();
-        },
-        resetForms() {
-            this.loginForm = {
-                email: '',
-                password: '',
-                error: null,
-                isLoading: false
-            };
-            this.registerForm = {
-                email: '',
-                password: '',
-                name: '',
-                error: null,
-                isLoading: false
-            };
-        },
-        showNotification(message, type = 'success') {
-            this.notification = { message, type, show: true };
-            setTimeout(() => this.notification.show = false, 3000);
-        },
-        validateForm(type) {
-            const form = type === 'login' ? this.loginForm : this.registerForm;
-            if (!form.email || !form.email.includes('@')) {
-                this.showNotification('Please enter a valid email', 'error');
-                return false;
-            }
-            if (!form.password || form.password.length < 8) {
-                this.showNotification('Password must be at least 8 characters', 'error');
-                return false;
-            }
-            if (type === 'register' && (!form.name || form.name.length < 2)) {
-                this.showNotification('Name must be at least 2 characters', 'error');
-                return false;
-            }
-            return true;
-        },
-        async handleLogin() {
-            if (!this.validateForm('login')) return;
-            
-            this.loginForm.isLoading = true;
-            this.loginForm.error = null;
-            
-            try {
-                const response = await fetch('/api/auth/login', {
-                    method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/json',
-                    },
-                    body: JSON.stringify({
-                        email: this.loginForm.email,
-                        password: this.loginForm.password,
-                    }),
-                });
-                
-                const data = await response.json();
-                if (!data.success) throw new Error(data.error || 'Login failed');
-                
-                localStorage.setItem('token', data.data.token);
-                localStorage.setItem('user', JSON.stringify(data.data.user));
-                
-                this.showNotification('Welcome back!', 'success');
-                this.closeModals();
-                window.location.reload();
-            } catch (err) {
-                this.showNotification(err.message, 'error');
-                console.error('Login error:', err);
-            } finally {
-                this.loginForm.isLoading = false;
-            }
-        },
-        async handleRegister() {
-            console.log('Starting registration process...');
-            if (!this.validateForm('register')) {
-                console.log('Form validation failed');
-                return;
-            }
-            
-            this.registerForm.isLoading = true;
-            this.registerForm.error = null;
-            
-            const registerData = {
-                email: this.registerForm.email,
-                password: this.registerForm.password,
-                name: this.registerForm.name,
-                genres: []
-            };
-            
-            console.log('Sending registration request:', { email: registerData.email, name: registerData.name });
-            
-            try {
-                const response = await fetch('/api/auth/register', {
-                    method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/json',
-                    },
-                    body: JSON.stringify(registerData),
-                });
-                
-                console.log('Registration response status:', response.status);
-                
-                const data = await response.json();
-                console.log('Registration response data:', data);
-                
-                if (!response.ok) {
-                    throw new Error(data.error || `Registration failed with status ${response.status}`);
+        showSearch: false,
+        notification: null,
+        init() {
+            this.$watch('searchQuery', value => {
+                if (this.$store.app) {
+                    this.$store.app.setSearchQuery(value);
                 }
-                
-                if (!data.success) {
-                    throw new Error(data.error || 'Registration failed');
-                }
-                
-                localStorage.setItem('token', data.data.token);
-                localStorage.setItem('user', JSON.stringify(data.data.user));
-                
-                this.showNotification('Registration successful! Welcome to SaveMyRead!', 'success');
-                this.closeModals();
-                window.location.reload();
-            } catch (err) {
-                console.error('Registration error:', err);
-                this.showNotification(err.message || 'Failed to register. Please try again.', 'error');
-                this.registerForm.error = err.message;
-            } finally {
-                this.registerForm.isLoading = false;
-            }
+            });
         }
-    }" @keydown.escape="closeModals()">
-        <header class="bg-white shadow-sm fixed w-full top-0 z-10">
-            <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4 flex justify-between items-center">
-                <div class="text-xl font-bold text-gray-900">ReadQuest</div>
-                <div x-data="{ user: JSON.parse(localStorage.getItem('user') || 'null') }">
-                    <template x-if="!user">
-                        <button 
-                            @click="showLogin = true"
-                            class="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md text-white bg-indigo-600 hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500"
-                        >
-                            Sign In
-                        </button>
-                    </template>
-                    <template x-if="user">
-                        <div class="flex items-center space-x-4">
-                            <span class="text-gray-700" x-text="'Welcome, ' + user.name"></span>
-                            <button 
-                                @click="localStorage.removeItem('token'); localStorage.removeItem('user'); window.location.reload();"
-                                class="text-sm text-gray-600 hover:text-gray-900"
-                            >
-                                Sign Out
-                            </button>
-                        </div>
-                    </template>
-                </div>
-            </div>
-        </header>
-
-        <main class="max-w-7xl mx-auto pt-24 px-4 sm:px-6 lg:px-8">
-            <!-- Hero Section -->
-            <div class="text-center mb-12">
-                <h2 class="text-5xl tracking-tight font-extrabold sm:text-6xl md:text-7xl lg:text-8xl">
-                    <span class="text-gray-900">Read</span>
-                    <span class="gradient-text">Quest</span>
-                </h2>
-                <p class="mt-3 max-w-md mx-auto text-base text-gray-500 sm:text-lg md:mt-5 md:text-xl md:max-w-3xl">
-                    discover. track. <span class="text-orange-500 font-semibold">conquer</span> your reading list.
-                </p>
-            </div>
-
-            <!-- Search Section -->
-            <div x-data="searchData">
-                <div class="max-w-2xl mx-auto mb-12">
-                    <div class="mt-1 relative rounded-md shadow-sm">
-                        <input
-                            type="text"
-                            x-model="searchQuery"
-                            @keyup.enter="searchBooks()"
-                            class="block w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-indigo-500 focus:border-indigo-500"
-                            placeholder="Search for books..."
-                        >
-                        <button 
-                            @click="searchBooks()"
-                            class="absolute inset-y-0 right-0 px-4 flex items-center bg-indigo-600 text-white rounded-r-lg hover:bg-indigo-700"
-                        >
-                            Search
-                        </button>
+    }">
+        <!-- Navigation -->
+        <nav class="bg-white shadow-sm fixed w-full top-0 z-10">
+            <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+                <div class="flex justify-between h-16">
+                    <!-- Logo -->
+                    <div class="flex items-center">
+                        <h1 class="text-2xl font-bold gradient-text">ReadQuest</h1>
                     </div>
-                </div>
-
-                <!-- Loading State -->
-                <div x-show="isLoading" class="text-center py-12">
-                    <div class="animate-spin rounded-full h-12 w-12 border-b-2 border-indigo-600 mx-auto"></div>
-                </div>
-
-                <!-- Error Message -->
-                <div x-show="error" class="bg-red-50 border-l-4 border-red-400 p-4 mb-8" role="alert">
-                    <p class="text-red-700" x-text="error"></p>
-                </div>
-
-                <!-- Results Grid -->
-                <div x-show="books.items && books.items.length > 0" 
-                     class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
-                    <template x-for="book in books.items" :key="book.id">
-                        <div class="bg-white rounded-lg shadow-sm hover:shadow-md transition-shadow duration-200 overflow-hidden">
-                            <img 
-                                :src="book.volumeInfo.imageLinks?.thumbnail || 'https://via.placeholder.com/300x400?text=No+Image'" 
-                                class="w-full h-64 object-cover"
+                    
+                    <!-- Auth Section -->
+                    <div class="flex items-center space-x-4">
+                        <template x-if="!isAuthenticated">
+                            <button 
+                                @click="$dispatch('open-auth')"
+                                class="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md text-white bg-indigo-600 hover:bg-indigo-700"
                             >
-                            <div class="p-6">
-                                <h2 
-                                    x-text="book.volumeInfo.title" 
-                                    class="text-lg font-semibold text-gray-900 mb-2 line-clamp-2"
-                                ></h2>
-                                <p 
-                                    x-text="book.volumeInfo.authors?.join(', ')" 
-                                    class="text-sm text-gray-600 mb-4"
-                                ></p>
-                                <p 
-                                    x-text="book.volumeInfo.categories?.join(', ')" 
-                                    class="text-xs text-gray-500 mb-2"
-                                ></p>
-                                <p 
-                                    x-text="book.volumeInfo.description?.substring(0, 150) + '...'" 
-                                    class="text-sm text-gray-600 mb-4 line-clamp-3"
-                                ></p>
+                                Sign In
+                            </button>
+                        </template>
+                        
+                        <template x-if="isAuthenticated">
+                            <div class="flex items-center space-x-4">
+                                <span class="text-gray-700" x-text="user?.name || 'User'"></span>
                                 <button 
-                                    @click="addToReadingList(book)"
-                                    class="w-full inline-flex justify-center items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md text-white bg-indigo-600 hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500"
+                                    @click="logout()"
+                                    class="text-sm text-gray-600 hover:text-gray-900"
                                 >
-                                    Add to Reading List
+                                    Sign Out
                                 </button>
                             </div>
-                        </div>
-                    </template>
+                        </template>
+                    </div>
                 </div>
             </div>
+        </nav>
+
+        <main class="pt-16">
+            <!-- Hero Section -->
+            <div class="text-center py-12 bg-gradient-to-b from-white to-gray-50">
+                <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+                    <h2 class="text-5xl tracking-tight font-extrabold sm:text-6xl md:text-7xl lg:text-8xl">
+                        <span class="text-gray-900">Read</span>
+                        <span class="gradient-text">Quest</span>
+                    </h2>
+                    <p class="mt-3 max-w-md mx-auto text-base text-gray-500 sm:text-lg md:mt-5 md:text-xl md:max-w-3xl">
+                        discover. track. <span class="text-orange-500 font-semibold">conquer</span> your reading list.
+                    </p>
+
+                    <!-- Search Bar (Trigger) -->
+                    <div class="max-w-2xl mx-auto mt-8">
+                        <div class="relative rounded-lg shadow-sm">
+                            <input
+                                type="text"
+                                x-model="searchQuery"
+                                @keyup.enter="$store.app?.toggleSearch(true)"
+                                class="block w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-indigo-500 focus:border-indigo-500"
+                                placeholder="Search for books..."
+                            >
+                            <button 
+                                @click="$store.app?.toggleSearch(true)"
+                                class="absolute inset-y-0 right-0 px-6 flex items-center bg-indigo-600 text-white rounded-r-lg hover:bg-indigo-700 transition-colors"
+                            >
+                                <i class="fas fa-search mr-2"></i>
+                                Search
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Main Content -->
+            <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+                <div x-data="bookList"></div>
+            </div>
+
+            <!-- Search Component Include -->
+            {% include 'components/search.html' %}
         </main>
 
-        <!-- Modal Backdrop -->
+        <!-- Notifications -->
         <div 
-            class="modal-backdrop"
-            :class="{ 'show': showLogin || showRegister }"
-            x-show="showLogin || showRegister"
-            x-transition:enter="transition ease-out duration-300"
-            x-transition:enter-start="opacity-0"
-            x-transition:enter-end="opacity-100"
-            x-transition:leave="transition ease-in duration-200"
-            x-transition:leave-start="opacity-100"
-            x-transition:leave-end="opacity-0"
-            @click="closeModals()"
-        ></div>
-
-        <!-- Login Modal -->
-        <div 
-            class="modal fixed inset-0 flex items-center justify-center"
-            :class="{ 'show': showLogin }"
-            x-show="showLogin"
-            x-transition:enter="transition ease-out duration-300"
-            x-transition:enter-start="opacity-0 transform scale-95"
-            x-transition:enter-end="opacity-100 transform scale-100"
-            x-transition:leave="transition ease-in duration-200"
-            x-transition:leave-start="opacity-100 transform scale-100"
-            x-transition:leave-end="opacity-0 transform scale-95"
-            @click.away="closeModals()"
+            x-data="{ notification: { show: false, message: '', type: '' } }"
+            x-on:notification.window="
+                notification = $event.detail;
+                setTimeout(() => notification.show = false, 3000)
+            "
+            class="fixed bottom-4 right-4 z-50"
         >
-            <div 
-                class="bg-white p-8 rounded-lg shadow-lg max-w-md w-full"
-                @click.stop
+            <div
+                x-show="notification.show"
+                x-transition
+                :class="{
+                    'bg-green-500': notification.type === 'success',
+                    'bg-red-500': notification.type === 'error'
+                }"
+                class="text-white px-6 py-3 rounded-lg shadow-lg"
             >
-                <h2 class="text-2xl font-bold mb-6">Sign In</h2>
-                <p class="text-gray-600 mb-4">Don't have an account? <button type="button" @click="switchToRegister()" class="text-orange-600 hover:text-orange-700 font-semibold">Register here</button></p>
-                <form @submit.prevent="handleLogin">
-                    <div class="mb-4">
-                        <label class="block text-gray-700 text-sm font-bold mb-2">Email</label>
-                        <input 
-                            type="email" 
-                            x-model="loginForm.email"
-                            class="w-full px-3 py-2 border rounded focus:outline-none focus:ring-2 focus:ring-indigo-500"
-                            required
-                        >
-                    </div>
-                    <div class="mb-6">
-                        <label class="block text-gray-700 text-sm font-bold mb-2">Password</label>
-                        <input 
-                            type="password" 
-                            x-model="loginForm.password"
-                            class="w-full px-3 py-2 border rounded focus:outline-none focus:ring-2 focus:ring-indigo-500"
-                            required
-                        >
-                    </div>
-                    <button 
-                        type="submit"
-                        :disabled="loginForm.isLoading"
-                        class="w-full bg-indigo-600 text-white py-2 px-4 rounded hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 disabled:opacity-50"
-                    >
-                        <span x-show="!loginForm.isLoading">Sign In</span>
-                        <span x-show="loginForm.isLoading">
-                            <svg class="animate-spin h-5 w-5 mx-auto" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
-                                <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
-                                <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
-                            </svg>
-                        </span>
-                    </button>
-                </form>
-            </div>
-        </div>
-
-        <!-- Register Modal -->
-        <div 
-            class="modal fixed inset-0 flex items-center justify-center"
-            :class="{ 'show': showRegister }"
-            x-show="showRegister"
-            x-transition:enter="transition ease-out duration-300"
-            x-transition:enter-start="opacity-0 transform scale-95"
-            x-transition:enter-end="opacity-100 transform scale-100"
-            x-transition:leave="transition ease-in duration-200"
-            x-transition:leave-start="opacity-100 transform scale-100"
-            x-transition:leave-end="opacity-0 transform scale-95"
-            @click.away="closeModals()"
-        >
-            <div 
-                class="bg-white p-8 rounded-lg shadow-lg max-w-md w-full"
-                @click.stop
-            >
-                <h2 class="text-2xl font-bold mb-6">Create Account</h2>
-                <p class="text-gray-600 mb-4">Already have an account? <button type="button" @click="switchToLogin()" class="text-orange-600 hover:text-orange-700 font-semibold">Sign in here</button></p>
-                <form @submit.prevent="handleRegister">
-                    <div class="mb-4">
-                        <label class="block text-gray-700 text-sm font-bold mb-2">Name</label>
-                        <input 
-                            type="text" 
-                            x-model="registerForm.name"
-                            class="w-full px-3 py-2 border rounded focus:outline-none focus:ring-2 focus:ring-indigo-500"
-                            required
-                        >
-                    </div>
-                    <div class="mb-4">
-                        <label class="block text-gray-700 text-sm font-bold mb-2">Email</label>
-                        <input 
-                            type="email" 
-                            x-model="registerForm.email"
-                            class="w-full px-3 py-2 border rounded focus:outline-none focus:ring-2 focus:ring-indigo-500"
-                            required
-                        >
-                    </div>
-                    <div class="mb-6">
-                        <label class="block text-gray-700 text-sm font-bold mb-2">Password</label>
-                        <input 
-                            type="password" 
-                            x-model="registerForm.password"
-                            class="w-full px-3 py-2 border rounded focus:outline-none focus:ring-2 focus:ring-indigo-500"
-                            required
-                        >
-                        <p class="mt-1 text-sm text-gray-500">Must be at least 8 characters</p>
-                    </div>
-                    <button 
-                        type="submit"
-                        :disabled="registerForm.isLoading"
-                        class="w-full bg-indigo-600 text-white py-2 px-4 rounded hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 disabled:opacity-50"
-                    >
-                        <span x-show="!registerForm.isLoading">Create Account</span>
-                        <span x-show="registerForm.isLoading">
-                            <svg class="animate-spin h-5 w-5 mx-auto" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
-                                <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
-                                <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
-                            </svg>
-                        </span>
-                    </button>
-                </form>
+                <span x-text="notification.message"></span>
             </div>
         </div>
     </div>
-    <div id="debug-panel" x-data="{ show: false }" @keydown.ctrl.d.window="show = !show" x-show="show">
+
+    <!-- Debug Panel -->
+    <div id="debug-panel" 
+        x-data="{ show: false }" 
+        @keydown.ctrl.d.window="show = !show" 
+        x-show="show"
+    >
         <div class="max-w-7xl mx-auto">
             <h3>Debug Information:</h3>
             <pre x-text="JSON.stringify({
-                searchQuery,
-                booksCount: books?.items?.length || 0,
-                isLoading,
-                error
+                searchQuery: $store.app?.searchQuery,
+                showSearch: $store.app?.showSearch,
+                notification
             }, null, 2)"></pre>
         </div>
     </div>
+
     <!-- Footer -->
     <footer class="py-4 border-t border-gray-200 mt-auto">
         <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
@@ -511,148 +243,16 @@
             </div>
         </div>
     </footer>
-    <!-- Notification Component -->
-    <div 
-        x-show="notification.show"
-        x-transition:enter="transition ease-out duration-300"
-        x-transition:enter-start="opacity-0 transform scale-90"
-        x-transition:enter-end="opacity-100 transform scale-100"
-        x-transition:leave="transition ease-in duration-300"
-        x-transition:leave-start="opacity-100 transform scale-100"
-        x-transition:leave-end="opacity-0 transform scale-90"
-        :class="notification.type === 'error' ? 'bg-red-100 border-red-400 text-red-700' : 'bg-green-100 border-green-400 text-green-700'"
-        class="fixed top-4 right-4 px-4 py-3 border-l-4 rounded shadow-md"
-        role="alert"
-    >
-        <p x-text="notification.message"></p>
-    </div>
+
+    <!-- Debug Helper -->
     <script>
-    async function fetchWithAuth(url, options = {}) {
-        const token = localStorage.getItem('token');
-        if (!token) {
-            throw new Error('No authentication token found');
-        }
-
-        const headers = {
-            'Content-Type': 'application/json',
-            'Authorization': `Bearer ${token}`,
-            ...options.headers
-        };
-
-        const response = await fetch(url, {
-            ...options,
-            headers
+        document.addEventListener('alpine:init', () => {
+            console.log('Alpine initialized');
         });
-
-        if (!response.ok) {
-            const error = await response.json();
-            throw new Error(error.error || 'Request failed');
-        }
-
-        return response.json();
-    }
-
-    async function addBook(bookData) {
-        return fetchWithAuth('/api/books/add', {
-            method: 'POST',
-            body: JSON.stringify(bookData)
+        
+        window.addEventListener('error', (event) => {
+            console.error('Global error:', event.error);
         });
-    }
-
-    async function getUserBooks(status = '') {
-        const url = status ? `/api/books?status=${status}` : '/api/books';
-        return fetchWithAuth(url);
-    }
-
-    async function updateBookStatus(bookId, status) {
-        return fetchWithAuth('/api/books/status', {
-            method: 'PUT',
-            body: JSON.stringify({ book_id: bookId, status })
-        });
-    }
-
-    // Add search function
-    async function searchBooks() {
-        const searchQuery = document.querySelector('input[x-model="searchQuery"]').value;
-        if (!searchQuery) return;
-
-        try {
-            const response = await fetch(`/api/books/search?q=${encodeURIComponent(searchQuery)}`);
-            if (!response.ok) {
-                throw new Error('Search failed');
-            }
-            const data = await response.json();
-            window.dispatchEvent(new CustomEvent('alpine:update:books', { detail: data }));
-        } catch (error) {
-            console.error('Search error:', error);
-            window.dispatchEvent(new CustomEvent('alpine:update:error', { 
-                detail: error.message || 'Failed to search books' 
-            }));
-        }
-    }
-
-    // Add to Alpine.js data
-    document.addEventListener('alpine:init', () => {
-        Alpine.data('searchData', () => ({
-            books: { items: [] },
-            searchQuery: '',
-            isLoading: false,
-            error: null,
-            
-            async searchBooks() {
-                if (!this.searchQuery) return;
-                
-                this.isLoading = true;
-                this.error = null;
-                
-                try {
-                    const response = await fetch(`/api/books/search?q=${encodeURIComponent(this.searchQuery)}`);
-                    if (!response.ok) {
-                        throw new Error('Search failed');
-                    }
-                    const data = await response.json();
-                    this.books = data;
-                } catch (error) {
-                    console.error('Search error:', error);
-                    this.error = error.message || 'Failed to search books';
-                } finally {
-                    this.isLoading = false;
-                }
-            },
-
-            async addToReadingList(book) {
-                if (!localStorage.getItem('token')) {
-                    this.showNotification('Please sign in to add books to your reading list', 'error');
-                    return;
-                }
-
-                try {
-                    const bookData = {
-                        google_book_id: book.id,
-                        title: book.volumeInfo.title,
-                        authors: book.volumeInfo.authors || [],
-                        description: book.volumeInfo.description || '',
-                        categories: book.volumeInfo.categories || [],
-                        image_url: book.volumeInfo.imageLinks?.thumbnail || '',
-                        status: 'TO_READ'
-                    };
-
-                    await addBook(bookData);
-                    this.showNotification('Book added to your reading list!', 'success');
-                } catch (error) {
-                    console.error('Add book error:', error);
-                    this.showNotification(error.message || 'Failed to add book to reading list', 'error');
-                }
-            },
-
-            showNotification(message, type = 'success') {
-                const event = new CustomEvent('show-notification', {
-                    detail: { message, type }
-                });
-                window.dispatchEvent(event);
-            }
-        }));
-    });
     </script>
 </body>
 </html> 

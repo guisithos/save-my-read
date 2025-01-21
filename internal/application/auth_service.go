@@ -6,6 +6,7 @@ import (
 
 	"github.com/guisithos/save-my-read/internal/domain/auth"
 	"github.com/guisithos/save-my-read/internal/domain/user"
+	"golang.org/x/crypto/bcrypt"
 )
 
 type AuthService struct {
@@ -70,17 +71,24 @@ func (s *AuthService) Register(email, password, name string, genres []string) (*
 }
 
 func (s *AuthService) Login(email, password string) (*auth.LoginResponse, error) {
+	// Find user by email
 	user, err := s.userRepo.FindByEmail(email)
 	if err != nil {
-		return nil, errors.New("invalid credentials")
+		// Log the error but don't expose internal details
+		fmt.Printf("Error finding user: %v\n", err)
+		return nil, auth.ErrInvalidCredentials
 	}
 
-	if !user.ValidatePassword(password) {
-		return nil, errors.New("invalid credentials")
+	// Validate password using bcrypt
+	if err := bcrypt.CompareHashAndPassword([]byte(user.Password), []byte(password)); err != nil {
+		fmt.Printf("Invalid password for user %s\n", email)
+		return nil, auth.ErrInvalidCredentials
 	}
 
+	// Generate JWT token
 	token, err := s.tokenService.GenerateToken(user.ID, user.Email)
 	if err != nil {
+		fmt.Printf("Error generating token: %v\n", err)
 		return nil, fmt.Errorf("failed to generate token: %w", err)
 	}
 

@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 
+	"github.com/guisithos/save-my-read/internal/domain/auth"
 	"github.com/guisithos/save-my-read/internal/domain/user"
 	"github.com/lib/pq"
 )
@@ -73,10 +74,9 @@ func (r *UserRepository) FindByEmail(email string) (*user.User, error) {
 	)
 
 	if err == sql.ErrNoRows {
-		return nil, errors.New("user not found")
+		return nil, auth.ErrInvalidCredentials
 	}
 	if err != nil {
-		fmt.Printf("Error finding user by email: %v\n", err)
 		return nil, fmt.Errorf("error finding user: %w", err)
 	}
 
